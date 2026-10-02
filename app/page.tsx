@@ -260,6 +260,260 @@ export default function ReservasPage() {
     );
   }
 
+  if (etapa === "mesa" && horario) {
+    return (
+      <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {/* ===== MOBILE — inalterado ===== */}
+        <div className="lg:hidden flex-1 flex flex-col">
+          <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
+            <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+            <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
+              Consultar reserva
+            </Link>
+          </header>
+
+          <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
+            <div className="flex flex-col gap-5 pt-4 sm:pt-6">
+              <TopoEtapa onVoltar={() => setEtapa("horario")} etapaNumero={2} />
+              <div>
+                <h1 className="font-display text-2xl">Escolha sua mesa</h1>
+                <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Selecione onde você gostaria de sentar.</p>
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {[{ chave: "todas" as const, label: "Todas" }, ...ZONAS].map((z) => {
+                  const ativo = zonaAtiva === z.chave;
+                  return (
+                    <button
+                      key={z.chave}
+                      onClick={() => setZonaAtiva(z.chave)}
+                      className="px-4 py-2 text-sm font-medium border shrink-0"
+                      style={{ borderRadius: "999px", borderColor: ativo ? "var(--color-primary)" : "var(--color-border)", background: ativo ? "var(--color-primary-soft)" : "transparent", color: ativo ? "var(--color-primary)" : "var(--color-text-muted)" }}
+                    >
+                      {z.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col gap-5">
+                {ZONAS.filter((z) => zonaAtiva === "todas" || zonaAtiva === z.chave).map((z) => (
+                  <div key={z.chave} className="flex flex-col gap-2.5">
+                    <span className="text-[11px] font-semibold tracking-wide uppercase" style={{ color: "var(--color-text-muted)" }}>{z.chave === "Salão" ? "Salão" : z.chave}</span>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                      {mesas.filter((m) => m.zona === z.chave).map((m) => {
+                        const status = statusMesa(reservas, dia, horario, m, pessoas);
+                        const selecionada = mesaNumero === m.numero;
+                        const indisponivel = status !== "livre" && !selecionada;
+                        const bg = selecionada ? "var(--color-primary)" : status === "ocupada" ? "var(--color-secondary)" : indisponivel ? "var(--color-border)" : "var(--color-accent-soft)";
+                        const txt = selecionada || status === "ocupada" ? "#fff" : indisponivel ? "var(--color-text-muted)" : "var(--color-accent-dark)";
+                        return (
+                          <button
+                            key={m.numero}
+                            disabled={indisponivel}
+                            onClick={() => setMesaNumero(m.numero)}
+                            className={`flex flex-col items-center justify-center gap-0.5 aspect-square border-2 ${m.formato === "redonda" ? "rounded-full" : ""}`}
+                            style={{ borderRadius: m.formato === "redonda" ? "9999px" : "var(--radius-sm)", background: bg, borderColor: bg, opacity: indisponivel && status !== "ocupada" ? 0.7 : 1 }}
+                          >
+                            <span className="text-sm font-semibold" style={{ color: txt }}>{m.numero}</span>
+                            <span className="text-[10px]" style={{ color: txt, opacity: 0.85 }}>{m.capacidade}p</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-4 flex-wrap">
+                <LegendaDot cor="var(--color-accent-soft)" borda="var(--color-accent)" label="Livre" />
+                <LegendaDot cor="var(--color-primary)" borda="var(--color-primary)" label="Selecionada" />
+                <LegendaDot cor="var(--color-secondary)" borda="var(--color-secondary)" label="Reservada" />
+                <LegendaDot cor="var(--color-border)" borda="var(--color-border)" label="Indisponível" />
+              </div>
+
+              {mesaObj && (
+                <div className="border p-3 flex items-center gap-3" style={{ borderColor: "var(--color-primary)", background: "var(--color-primary-soft)", borderRadius: "var(--radius-sm)" }}>
+                  <div className="relative w-12 h-12 rounded-md overflow-hidden shrink-0">
+                    <Image src="/hero-zeplin.webp" alt="" fill className="object-cover" />
+                  </div>
+                  <span className="text-sm font-semibold">Mesa {mesaObj.numero} · {rotuloZona(mesaObj.zona)} · {mesaObj.capacidade} lugares</span>
+                </div>
+              )}
+
+              <button
+                onClick={() => setEtapa("dados")}
+                disabled={!mesaNumero}
+                className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== DESKTOP — redesign ===== */}
+        <div className="hidden lg:flex flex-col flex-1">
+          <header className="flex items-center justify-between px-10 py-5 border-b" style={{ borderColor: "var(--color-border)" }}>
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={46} height={46} className="rounded-full" />
+              <span className="font-display text-[21px] leading-none" style={{ color: "var(--color-dark)" }}>{reservaBrand.restauranteAtual}</span>
+            </Link>
+            <Link href="/consulta" className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: "var(--color-primary)" }}>
+              Consultar reserva
+              {ICONE_CALENDARIO}
+            </Link>
+          </header>
+
+          <div className="flex-1 flex flex-col items-center px-10 py-14">
+            <div className="w-full max-w-[1180px] flex flex-col gap-9">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+                <button onClick={() => setEtapa("horario")} className="flex items-center gap-2 text-[14px] font-medium justify-self-start" style={{ color: "var(--color-text-muted)" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                  Voltar
+                </button>
+                <StepIndicatorDesktop atual={2} />
+                <span />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <h1 className="font-display text-[44px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Escolha sua mesa</h1>
+                <p className="text-[16px]" style={{ color: "var(--color-text-muted)" }}>Selecione onde você gostaria de sentar.</p>
+              </div>
+
+              <div className="grid grid-cols-[1fr_320px] gap-10 items-start">
+                {/* ESQUERDA — filtros + mesas por ambiente */}
+                <div className="flex flex-col gap-7">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-2.5">
+                      {[{ chave: "todas" as const, label: "Todas" }, ...ZONAS].map((z) => {
+                        const ativo = zonaAtiva === z.chave;
+                        return (
+                          <button
+                            key={z.chave}
+                            onClick={() => setZonaAtiva(z.chave)}
+                            className="px-4 py-2 text-[13.5px] font-medium border"
+                            style={{
+                              borderRadius: "999px",
+                              borderColor: ativo ? "var(--color-primary)" : "var(--color-border)",
+                              background: ativo ? "var(--color-primary)" : "var(--color-surface)",
+                              color: ativo ? "#fff" : "var(--color-text-muted)",
+                            }}
+                          >
+                            {z.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <LegendaDotDesktop cor="var(--color-accent)" label="Disponível" />
+                      <LegendaDotDesktop cor="var(--color-primary)" label="Selecionada" />
+                      <LegendaDotDesktop cor="var(--color-text-muted)" label="Indisponível" />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-7">
+                    {ZONAS.filter((z) => zonaAtiva === "todas" || zonaAtiva === z.chave).map((z) => (
+                      <div key={z.chave} className="flex flex-col gap-4">
+                        <div className="flex items-center gap-4">
+                          <span className="text-[12px] font-bold tracking-[0.14em] uppercase shrink-0" style={{ color: "var(--color-dark)" }}>
+                            {z.chave === "Salão" ? "Salão" : z.chave}
+                          </span>
+                          <span className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
+                        </div>
+                        <div className="grid grid-cols-4 gap-6">
+                          {mesas.filter((m) => m.zona === z.chave).map((m) => {
+                            const status = statusMesa(reservas, dia, horario, m, pessoas);
+                            const selecionada = mesaNumero === m.numero;
+                            const indisponivel = status !== "livre" && !selecionada;
+                            const bg = selecionada ? "var(--color-primary)" : indisponivel ? "var(--color-border)" : "var(--color-accent-soft)";
+                            const txt = selecionada ? "#fff" : indisponivel ? "var(--color-text-muted)" : "var(--color-dark)";
+                            return (
+                              <button
+                                key={m.numero}
+                                disabled={indisponivel}
+                                onClick={() => setMesaNumero(m.numero)}
+                                className={`w-full aspect-square flex flex-col items-center justify-center gap-1 ${m.formato === "redonda" ? "rounded-full" : ""}`}
+                                style={{
+                                  borderRadius: m.formato === "redonda" ? "9999px" : "16px",
+                                  background: bg,
+                                  opacity: indisponivel ? 0.6 : 1,
+                                  cursor: indisponivel ? "not-allowed" : "pointer",
+                                }}
+                              >
+                                <span className="font-display text-[22px] leading-none" style={{ color: txt }}>{m.numero}</span>
+                                <span className="text-[11.5px]" style={{ color: txt, opacity: selecionada ? 0.9 : 0.8 }}>{m.capacidade} lugares</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* DIREITA — resumo da mesa selecionada */}
+                <div className="border p-6 flex flex-col gap-5 sticky top-8" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "18px" }}>
+                  {mesaObj ? (
+                    <>
+                      <div>
+                        <span className="text-[11px] font-semibold tracking-[0.14em] uppercase" style={{ color: "var(--color-text-muted)" }}>Mesa selecionada</span>
+                        <h2 className="font-display text-[34px] leading-tight mt-1" style={{ color: "var(--color-dark)" }}>Mesa {mesaObj.numero}</h2>
+                      </div>
+
+                      <div className="flex flex-col gap-2.5">
+                        <div className="flex items-center gap-2.5 text-[14px]" style={{ color: "var(--color-dark)" }}>
+                          <span style={{ color: "var(--color-primary)" }}>{ICONE_MESA}</span>
+                          {mesaObj.capacidade} lugares
+                        </div>
+                        <div className="flex items-center gap-2.5 text-[14px]" style={{ color: "var(--color-dark)" }}>
+                          <span style={{ color: "var(--color-primary)" }}>{ICONE_PIN}</span>
+                          {rotuloZona(mesaObj.zona)}
+                        </div>
+                      </div>
+
+                      <div style={{ borderTop: "1px solid var(--color-border)" }} />
+
+                      <p className="text-[13.5px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                        Uma ótima escolha para até {mesaObj.capacidade} pessoas, com {DESCRICAO_AMBIENTE[mesaObj.zona]}.
+                      </p>
+
+                      <button
+                        onClick={() => setEtapa("dados")}
+                        className="w-full py-3.5 text-[14.5px] font-semibold text-white flex items-center justify-center gap-2"
+                        style={{ background: "var(--color-primary)", borderRadius: "12px" }}
+                      >
+                        Continuar
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <span className="text-[11px] font-semibold tracking-[0.14em] uppercase" style={{ color: "var(--color-text-muted)" }}>Mesa selecionada</span>
+                        <p className="text-[15px] mt-2" style={{ color: "var(--color-text-muted)" }}>
+                          Escolha uma mesa disponível para ver os detalhes aqui.
+                        </p>
+                      </div>
+                      <button
+                        disabled
+                        className="w-full py-3.5 text-[14.5px] font-semibold text-white disabled:opacity-40"
+                        style={{ background: "var(--color-primary)", borderRadius: "12px" }}
+                      >
+                        Continuar
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
       {/* HEADER */}
@@ -271,87 +525,6 @@ export default function ReservasPage() {
       </header>
 
       <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
-        {/* TELA 3 — MESA */}
-        {etapa === "mesa" && horario && (
-          <div className="flex flex-col gap-5 pt-4 sm:pt-6">
-            <TopoEtapa onVoltar={() => setEtapa("horario")} etapaNumero={2} />
-            <div>
-              <h1 className="font-display text-2xl">Escolha sua mesa</h1>
-              <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Selecione onde você gostaria de sentar.</p>
-            </div>
-
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {[{ chave: "todas" as const, label: "Todas" }, ...ZONAS].map((z) => {
-                const ativo = zonaAtiva === z.chave;
-                return (
-                  <button
-                    key={z.chave}
-                    onClick={() => setZonaAtiva(z.chave)}
-                    className="px-4 py-2 text-sm font-medium border shrink-0"
-                    style={{ borderRadius: "999px", borderColor: ativo ? "var(--color-primary)" : "var(--color-border)", background: ativo ? "var(--color-primary-soft)" : "transparent", color: ativo ? "var(--color-primary)" : "var(--color-text-muted)" }}
-                  >
-                    {z.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-col gap-5">
-              {ZONAS.filter((z) => zonaAtiva === "todas" || zonaAtiva === z.chave).map((z) => (
-                <div key={z.chave} className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-semibold tracking-wide uppercase" style={{ color: "var(--color-text-muted)" }}>{z.chave === "Salão" ? "Salão" : z.chave}</span>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                    {mesas.filter((m) => m.zona === z.chave).map((m) => {
-                      const status = statusMesa(reservas, dia, horario, m, pessoas);
-                      const selecionada = mesaNumero === m.numero;
-                      const indisponivel = status !== "livre" && !selecionada;
-                      const bg = selecionada ? "var(--color-primary)" : status === "ocupada" ? "var(--color-secondary)" : indisponivel ? "var(--color-border)" : "var(--color-accent-soft)";
-                      const txt = selecionada || status === "ocupada" ? "#fff" : indisponivel ? "var(--color-text-muted)" : "var(--color-accent-dark)";
-                      return (
-                        <button
-                          key={m.numero}
-                          disabled={indisponivel}
-                          onClick={() => setMesaNumero(m.numero)}
-                          className={`flex flex-col items-center justify-center gap-0.5 aspect-square border-2 ${m.formato === "redonda" ? "rounded-full" : ""}`}
-                          style={{ borderRadius: m.formato === "redonda" ? "9999px" : "var(--radius-sm)", background: bg, borderColor: bg, opacity: indisponivel && status !== "ocupada" ? 0.7 : 1 }}
-                        >
-                          <span className="text-sm font-semibold" style={{ color: txt }}>{m.numero}</span>
-                          <span className="text-[10px]" style={{ color: txt, opacity: 0.85 }}>{m.capacidade}p</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-4 flex-wrap">
-              <LegendaDot cor="var(--color-accent-soft)" borda="var(--color-accent)" label="Livre" />
-              <LegendaDot cor="var(--color-primary)" borda="var(--color-primary)" label="Selecionada" />
-              <LegendaDot cor="var(--color-secondary)" borda="var(--color-secondary)" label="Reservada" />
-              <LegendaDot cor="var(--color-border)" borda="var(--color-border)" label="Indisponível" />
-            </div>
-
-            {mesaObj && (
-              <div className="border p-3 flex items-center gap-3" style={{ borderColor: "var(--color-primary)", background: "var(--color-primary-soft)", borderRadius: "var(--radius-sm)" }}>
-                <div className="relative w-12 h-12 rounded-md overflow-hidden shrink-0">
-                  <Image src="/hero-zeplin.webp" alt="" fill className="object-cover" />
-                </div>
-                <span className="text-sm font-semibold">Mesa {mesaObj.numero} · {rotuloZona(mesaObj.zona)} · {mesaObj.capacidade} lugares</span>
-              </div>
-            )}
-
-            <button
-              onClick={() => setEtapa("dados")}
-              disabled={!mesaNumero}
-              className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
-              style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
-            >
-              Continuar
-            </button>
-          </div>
-        )}
-
         {/* TELA 4 — DADOS */}
         {etapa === "dados" && (
           <div className="flex flex-col gap-5 pt-4 sm:pt-6">
@@ -507,13 +680,19 @@ function StepIndicatorDesktop({ atual }: { atual: number }) {
             <div className="flex flex-col items-center gap-2">
               <span
                 className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-semibold"
-                style={{
-                  background: ativo || concluido ? "var(--color-primary)" : "var(--color-surface)",
-                  color: ativo || concluido ? "#fff" : "var(--color-text-muted)",
-                  border: ativo || concluido ? "none" : "1px solid var(--color-border)",
-                }}
+                style={
+                  ativo
+                    ? { background: "var(--color-primary)", color: "#fff" }
+                    : concluido
+                    ? { background: "var(--color-surface)", color: "var(--color-primary)", border: "1.5px solid var(--color-primary)" }
+                    : { background: "var(--color-surface)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }
+                }
               >
-                {numero}
+                {concluido ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                ) : (
+                  numero
+                )}
               </span>
               <span
                 className="text-[12.5px] font-medium whitespace-nowrap"
@@ -523,7 +702,7 @@ function StepIndicatorDesktop({ atual }: { atual: number }) {
               </span>
             </div>
             {numero < ETAPAS_DESKTOP.length && (
-              <span className="w-16 h-px mb-5 mx-3" style={{ background: "var(--color-border)" }} />
+              <span className="w-16 h-px mb-5 mx-3" style={{ background: concluido ? "var(--color-primary)" : "var(--color-border)" }} />
             )}
           </div>
         );
@@ -541,6 +720,21 @@ function LegendaDot({ cor, borda, label }: { cor: string; borda: string; label: 
   );
 }
 
+function LegendaDotDesktop({ cor, label }: { cor: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cor }} />
+      {label}
+    </span>
+  );
+}
+
+const DESCRICAO_AMBIENTE: Record<Mesa["zona"], string> = {
+  Bar: "o clima descontraído do bar",
+  Salão: "o ambiente aconchegante do salão",
+  Jardim: "o charme a céu aberto do jardim",
+};
+
 const ICONE_CALENDARIO = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
 );
@@ -549,6 +743,12 @@ const ICONE_PESSOA = (
 );
 const ICONE_RELOGIO = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+);
+const ICONE_MESA = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
+);
+const ICONE_PIN = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M12 21s-7-7.5-7-12a7 7 0 0 1 14 0c0 4.5-7 12-7 12Z" /><circle cx="12" cy="9" r="2.5" /></svg>
 );
 
 function CampoReserva({
