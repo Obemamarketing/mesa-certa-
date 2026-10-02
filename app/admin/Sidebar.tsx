@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,26 +38,6 @@ const ITENS = [
     ),
   },
   {
-    href: "/admin/cardapio",
-    label: "Cardápio",
-    ativo: (p: string) => p.startsWith("/admin/cardapio"),
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <path d="M5 3v18M5 3h11a3 3 0 0 1 3 3v6H5" />
-      </svg>
-    ),
-  },
-  {
-    href: "/admin/relatorios",
-    label: "Relatórios",
-    ativo: (p: string) => p.startsWith("/admin/relatorios"),
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <path d="M4 20V10M12 20V4M20 20v-7" />
-      </svg>
-    ),
-  },
-  {
     href: "/admin/configuracoes",
     label: "Configurações",
     ativo: (p: string) => p.startsWith("/admin/configuracoes"),
@@ -71,6 +52,13 @@ const ITENS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [agora, setAgora] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setAgora(new Date());
+    const id = setInterval(() => setAgora(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <aside
@@ -107,21 +95,17 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      <div
-        className="flex items-center gap-3 px-3 py-3 cursor-pointer"
-        style={{ borderRadius: "var(--radius-sm)", background: "rgba(0,0,0,0.18)" }}
-      >
-        <span
-          className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-          style={{ background: "var(--color-secondary)", color: "var(--color-dark)" }}
-        >
-          {reservaBrand.admin.nome.charAt(0).toUpperCase()}
-        </span>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold block text-white truncate">{reservaBrand.admin.nome}</span>
-          <span className="text-xs block truncate" style={{ color: "rgba(255,255,255,0.65)" }}>{reservaBrand.admin.cargo}</span>
+      <div className="flex flex-col gap-1.5 px-3.5 py-3.5" style={{ borderRadius: "var(--radius-sm)", background: "rgba(0,0,0,0.18)" }}>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--color-secondary)" }} />
+          <span className="text-[13.5px] font-semibold text-white">Restaurante aberto</span>
         </div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="2.5"><path d="m9 18 6-6-6-6" /></svg>
+        <span className="text-[12px] capitalize" style={{ color: "rgba(255,255,255,0.65)" }}>
+          {agora ? agora.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }) : " "}
+        </span>
+        <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.65)" }}>
+          {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : " "}
+        </span>
       </div>
     </aside>
   );

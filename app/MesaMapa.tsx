@@ -22,7 +22,10 @@ export default function MesaMapa({
   pessoasMin,
   mesaSelecionada,
   onSelecionar,
+  onInspecionar,
   somenteLeitura,
+  rotuloLivre = "Livre",
+  rotuloSelecionada = "Selecionada",
 }: {
   reservas: Reserva[];
   dia: DiaReserva;
@@ -30,7 +33,10 @@ export default function MesaMapa({
   pessoasMin?: number;
   mesaSelecionada?: string | null;
   onSelecionar?: (numero: string) => void;
+  onInspecionar?: (numero: string) => void;
   somenteLeitura?: boolean;
+  rotuloLivre?: string;
+  rotuloSelecionada?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -47,11 +53,15 @@ export default function MesaMapa({
                 const status = statusMesa(reservas, dia, horario, m, pessoasMin);
                 const selecionada = mesaSelecionada === m.numero;
                 const cor = selecionada ? CORES.selecionada : CORES[status];
-                const clicavel = !somenteLeitura && onSelecionar && (status === "livre" || selecionada);
+                const clicavel = !somenteLeitura && ((onSelecionar && (status === "livre" || selecionada)) || onInspecionar);
                 return (
                   <button
                     key={m.numero}
-                    onClick={() => clicavel && onSelecionar!(m.numero)}
+                    onClick={() => {
+                      if (!clicavel) return;
+                      if (onInspecionar) onInspecionar(m.numero);
+                      else onSelecionar!(m.numero);
+                    }}
                     disabled={!clicavel}
                     className={`flex flex-col items-center justify-center gap-0.5 aspect-square border-2 transition ${m.formato === "redonda" ? "rounded-full" : ""}`}
                     style={{
@@ -74,8 +84,8 @@ export default function MesaMapa({
       })}
 
       <div className="flex items-center gap-4 flex-wrap pt-1">
-        <Legenda cor="var(--color-accent)" label="Livre" />
-        <Legenda cor="var(--color-primary)" label="Selecionada" />
+        <Legenda cor="var(--color-accent)" label={rotuloLivre} />
+        <Legenda cor="var(--color-primary)" label={rotuloSelecionada} />
         <Legenda cor="var(--color-secondary)" label="Reservada" />
         {pessoasMin !== undefined && <Legenda cor="var(--color-border)" label="Indisponível" />}
       </div>

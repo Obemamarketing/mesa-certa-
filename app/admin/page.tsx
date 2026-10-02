@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
   DIAS,
@@ -18,11 +18,29 @@ import StatCard from "./StatCard";
 import StatusBadge from "./StatusBadge";
 import NewReservationModal from "./NewReservationModal";
 
-const TICKET_MEDIO_ESTIMADO = 56.5;
-
-function formatBRL(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function minutosDoHorario(h: string): number {
+  const [hh, mm] = h.split(":").map(Number);
+  return hh * 60 + mm;
 }
+
+const ICONE_CALENDARIO = (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
+);
+const ICONE_GRUPO = (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="8.5" cy="8" r="3" /><circle cx="16.5" cy="9.5" r="2.3" /><path d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M14.5 15c2.3.2 4 2 4 4.3" /></svg>
+);
+const ICONE_MESA = (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
+);
+const ICONE_RELOGIO = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+);
+const ICONE_TELEFONE = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5c0 8.284 6.716 15 15 15l1-4-5-2-2 2c-2.5-1-4.5-3-5.5-5.5l2-2-2-5-4 1Z" /></svg>
+);
+const ICONE_ORDENAR = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m7 9 5-5 5 5M7 15l5 5 5-5" /></svg>
+);
 
 export default function ReservasAdminPage() {
   const { reservas, carregando } = useReservas();
@@ -32,6 +50,21 @@ export default function ReservasAdminPage() {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"dia" | "todos">("dia");
   const [modalAberto, setModalAberto] = useState(false);
+  const [ordenarPor, setOrdenarPor] = useState<"horario" | "pessoas">("horario");
+  const [ordemAsc, setOrdemAsc] = useState(true);
+  const [mesaFoco, setMesaFoco] = useState<string | null>(null);
+  const [reservaFocoId, setReservaFocoId] = useState<string | null>(null);
+  const [minutosAgora, setMinutosAgora] = useState<number | null>(null);
+
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setMinutosAgora(d.getHours() * 60 + d.getMinutes());
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
 
   const diaAtivo = DIAS[diaIndex];
   const clientes = listarClientes(reservas);
@@ -48,11 +81,56 @@ export default function ReservasAdminPage() {
     : baseReservas
   ).filter((r) => !r.cancelada || filtro === "todos");
 
+  const reservasOrdenadas = [...reservasFiltradas].sort((a, b) => {
+    const dir = ordemAsc ? 1 : -1;
+    if (ordenarPor === "horario") return (minutosDoHorario(a.horario) - minutosDoHorario(b.horario)) * dir;
+    return (a.pessoas - b.pessoas) * dir;
+  });
+
+  function alternarOrdenacao(campo: "horario" | "pessoas") {
+    if (ordenarPor === campo) setOrdemAsc((a) => !a);
+    else {
+      setOrdenarPor(campo);
+      setOrdemAsc(true);
+    }
+  }
+
   const reservasDoDia = reservas.filter((r) => r.dia === diaAtivo.chave && !r.cancelada);
   const pessoasDoDia = reservasDoDia.reduce((s, r) => s + r.pessoas, 0);
   const mesasOcupadas = new Set(reservasDoDia.map((r) => r.mesaNumero)).size;
-  const faturamentoEstimado = pessoasDoDia * TICKET_MEDIO_ESTIMADO;
   const ocupacaoPct = Math.round((mesasOcupadas / mesas.length) * 100);
+
+  const proximasDuasHoras =
+    minutosAgora !== null
+      ? reservasDoDia.filter((r) => {
+          const m = minutosDoHorario(r.horario);
+          return m >= minutosAgora && m <= minutosAgora + 120;
+        }).length
+      : null;
+
+  const picoHorario = horarios
+    .map((h) => ({ h, total: reservasDoDia.filter((r) => r.horario === h).reduce((s, r) => s + r.pessoas, 0) }))
+    .reduce((max, cur) => (cur.total > max.total ? cur : max), { h: "", total: 0 });
+
+  const mesaFocoObj = mesaFoco ? mesas.find((m) => m.numero === mesaFoco) : undefined;
+  const reservaFoco = reservaFocoId
+    ? reservasDoDia.find((r) => r.id === reservaFocoId)
+    : mesaFoco
+    ? reservasDoDia.find((r) => r.mesaNumero === mesaFoco && r.horario === horarioPlanta) ??
+      reservasDoDia.find((r) => r.mesaNumero === mesaFoco)
+    : undefined;
+
+  function focarReserva(r: Reserva) {
+    setMesaFoco(r.mesaNumero);
+    setReservaFocoId(r.id);
+    setHorarioPlanta(r.horario);
+    setPainelMobile("planta");
+  }
+
+  function focarMesa(numero: string) {
+    setReservaFocoId(null);
+    setMesaFoco((atual) => (numero === atual ? null : numero));
+  }
 
   return (
     <>
@@ -62,7 +140,7 @@ export default function ReservasAdminPage() {
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div>
-            <h1 className="font-display text-[40px] leading-tight">Reservas de mesa</h1>
+            <h1 className="font-display text-[40px] leading-tight">Reservas</h1>
             <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
               Gerencie as reservas, visualize as mesas e acompanhe o movimento do {reservaBrand.restauranteAtual}.
             </p>
@@ -70,7 +148,8 @@ export default function ReservasAdminPage() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
             <div className="flex items-center justify-between gap-1 border px-1.5 py-1.5" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}>
               <button onClick={() => setDiaIndex((i) => (i - 1 + DIAS.length) % DIAS.length)} aria-label="Dia anterior" className="w-7 h-7 flex items-center justify-center shrink-0" style={{ color: "var(--color-text-muted)" }}>‹</button>
-              <span className="text-sm font-medium px-2 text-center whitespace-nowrap">
+              <span className="text-sm font-medium px-2 text-center whitespace-nowrap flex items-center gap-1.5">
+                {ICONE_CALENDARIO}
                 {diaAtivo.label}, {formatarDataCurta(dataDoDia(diaAtivo.chave))}
               </span>
               <button onClick={() => setDiaIndex((i) => (i + 1) % DIAS.length)} aria-label="Próximo dia" className="w-7 h-7 flex items-center justify-center shrink-0" style={{ color: "var(--color-text-muted)" }}>›</button>
@@ -85,31 +164,26 @@ export default function ReservasAdminPage() {
           </div>
         </div>
 
-        {/* KPIs */}
+        {/* KPIs operacionais */}
         <div className="flex flex-wrap gap-3">
           <StatCard
-            icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>}
-            label="Reservas hoje"
+            icon={ICONE_CALENDARIO}
+            label="reservas hoje"
             valor={String(reservasDoDia.length)}
-            rodape="em relação a ontem"
+            rodape={proximasDuasHoras !== null ? `${proximasDuasHoras} nas próximas 2 horas` : undefined}
           />
           <StatCard
-            icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6s6.5 2.2 6.5 5.6" /></svg>}
-            label="Pessoas"
+            icon={ICONE_GRUPO}
+            label="pessoas"
             valor={String(pessoasDoDia)}
-            rodape="em relação a ontem"
+            rodape={picoHorario.total > 0 ? `Pico às ${picoHorario.h}` : "Sem reservas ainda"}
           />
           <StatCard
-            icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>}
-            label="Mesas ocupadas"
+            icon={ICONE_MESA}
+            label="mesas reservadas"
             valor={`${mesasOcupadas}/${mesas.length}`}
             progresso={ocupacaoPct}
-          />
-          <StatCard
-            icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 20V10M12 20V4M20 20v-7" /></svg>}
-            label="Faturamento estimado"
-            valor={formatBRL(faturamentoEstimado)}
-            rodape="em relação a ontem"
+            rodape={`${ocupacaoPct}% de ocupação`}
           />
         </div>
 
@@ -156,23 +230,35 @@ export default function ReservasAdminPage() {
         </div>
 
         {/* LISTA + PLANTA */}
-        <div className="grid lg:grid-cols-[1.15fr_1fr] gap-5 items-start">
+        <div className="grid lg:grid-cols-[1.3fr_1fr] gap-5 items-start">
           <section
             className={`${painelMobile === "planta" ? "hidden lg:flex" : "flex"} flex-col border`}
             style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}
           >
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
-              <p className="font-display text-lg">{diaAtivo.label} — {formatarDataCurta(dataDoDia(diaAtivo.chave))}</p>
-              <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>{reservasFiltradas.length} reserva{reservasFiltradas.length === 1 ? "" : "s"}</span>
+              <p className="font-display text-lg">Reservas de {filtro === "dia" ? diaAtivo.label.toLowerCase() : "todos os dias"}</p>
+              <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>{reservasOrdenadas.length} reserva{reservasOrdenadas.length === 1 ? "" : "s"}</span>
             </div>
+
+            {reservasOrdenadas.length > 0 && (
+              <div className="hidden sm:flex items-center gap-3 px-5 py-2 text-[12px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>
+                <button onClick={() => alternarOrdenacao("horario")} className="flex items-center gap-1 w-12 shrink-0">Horário {ICONE_ORDENAR}</button>
+                <span className="flex-1 min-w-[140px]">Cliente</span>
+                <button onClick={() => alternarOrdenacao("pessoas")} className="flex items-center gap-1 w-20 shrink-0">Pessoas {ICONE_ORDENAR}</button>
+                <span className="w-20 shrink-0">Mesa</span>
+                <span className="w-24 shrink-0">Status</span>
+                <span className="w-5 shrink-0" />
+              </div>
+            )}
+
             {carregando ? (
               <p className="px-5 py-8 text-sm text-center" style={{ color: "var(--color-text-muted)" }}>Carregando…</p>
-            ) : reservasFiltradas.length === 0 ? (
+            ) : reservasOrdenadas.length === 0 ? (
               <p className="px-5 py-8 text-sm text-center" style={{ color: "var(--color-text-muted)" }}>Nenhuma reserva ainda pra esse dia.</p>
             ) : (
               <div className="flex flex-col">
-                {reservasFiltradas.map((r, i) => (
-                  <LinhaReserva key={r.id} reserva={r} comBorda={i > 0} />
+                {reservasOrdenadas.map((r, i) => (
+                  <LinhaReserva key={r.id} reserva={r} comBorda={i > 0} focada={r.id === reservaFocoId} onFocar={() => focarReserva(r)} />
                 ))}
               </div>
             )}
@@ -193,7 +279,66 @@ export default function ReservasAdminPage() {
                 {horarios.map((h) => <option key={h} value={h}>{h}</option>)}
               </select>
             </div>
-            <MesaMapa reservas={reservas} dia={diaAtivo.chave} horario={horarioPlanta} somenteLeitura />
+
+            <div className={mesaFocoObj ? "grid grid-cols-1 xl:grid-cols-[1fr_200px] gap-4 items-start" : ""}>
+              <MesaMapa
+                reservas={reservas}
+                dia={diaAtivo.chave}
+                horario={horarioPlanta}
+                mesaSelecionada={mesaFoco}
+                onInspecionar={focarMesa}
+                rotuloLivre="Disponível"
+                rotuloSelecionada="Ocupada"
+              />
+
+              {mesaFocoObj && (
+                <div className="border p-4 flex flex-col gap-3" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[15px] font-bold" style={{ color: "var(--color-dark)" }}>Mesa {mesaFocoObj.numero}</span>
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent-dark)" }}>
+                      {mesaFocoObj.zona}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-muted)" }}>
+                    {ICONE_MESA}
+                    {mesaFocoObj.capacidade} lugares
+                  </div>
+
+                  {reservaFoco ? (
+                    <>
+                      <div style={{ borderTop: "1px solid var(--color-border)" }} />
+                      <span className="text-[10.5px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-text-muted)" }}>Reserva atual</span>
+                      <div className="flex flex-col gap-1.5 text-[13px]" style={{ color: "var(--color-dark)" }}>
+                        <span className="font-semibold">{reservaFoco.nome}</span>
+                        <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_TELEFONE}{reservaFoco.telefone}</span>
+                        <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_RELOGIO}{reservaFoco.horario} · {reservaFoco.pessoas} pessoa{reservaFoco.pessoas === 1 ? "" : "s"}</span>
+                      </div>
+                      <StatusBadge cancelada={reservaFoco.cancelada} />
+                      {!reservaFoco.cancelada && (
+                        <button
+                          onClick={() => cancelarReserva(reservaFoco.id)}
+                          className="text-[12.5px] font-semibold py-2 border"
+                          style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}
+                        >
+                          Cancelar reserva
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[13px]" style={{ color: "var(--color-text-muted)" }}>Mesa disponível às {horarioPlanta}.</p>
+                      <button
+                        onClick={() => setModalAberto(true)}
+                        className="text-[12.5px] font-semibold py-2 text-white"
+                        style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+                      >
+                        + Nova reserva
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </section>
         </div>
 
@@ -227,24 +372,39 @@ export default function ReservasAdminPage() {
   );
 }
 
-function LinhaReserva({ reserva, comBorda }: { reserva: Reserva; comBorda: boolean }) {
+function LinhaReserva({
+  reserva,
+  comBorda,
+  focada,
+  onFocar,
+}: {
+  reserva: Reserva;
+  comBorda: boolean;
+  focada: boolean;
+  onFocar: () => void;
+}) {
   return (
-    <div className="flex items-center gap-3 px-5 py-3.5 flex-wrap sm:flex-nowrap" style={comBorda ? { borderTop: "1px solid var(--color-border)" } : undefined}>
+    <button
+      onClick={onFocar}
+      className="flex items-center gap-3 px-5 py-3.5 flex-wrap sm:flex-nowrap text-left w-full"
+      style={{
+        ...(comBorda ? { borderTop: "1px solid var(--color-border)" } : {}),
+        background: focada ? "var(--color-primary-tint)" : "transparent",
+        borderLeft: focada ? "3px solid var(--color-primary)" : "3px solid transparent",
+      }}
+    >
       <span className="text-[15px] font-semibold tabular-nums w-12 shrink-0">{reserva.horario}</span>
       <div className="flex-1 min-w-[140px]">
         <span className="text-[16px] font-semibold block truncate">{reserva.nome}</span>
-        <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{reserva.pessoas} pessoa{reserva.pessoas === 1 ? "" : "s"}</span>
+        <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{reserva.telefone}</span>
       </div>
-      <span className="flex items-center gap-1.5 text-xs shrink-0" style={{ color: "var(--color-text-muted)" }}>
+      <span className="text-[14px] w-20 shrink-0" style={{ color: "var(--color-text-muted)" }}>{reserva.pessoas} pessoa{reserva.pessoas === 1 ? "" : "s"}</span>
+      <span className="flex items-center gap-1.5 text-xs w-20 shrink-0" style={{ color: "var(--color-text-muted)" }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
         Mesa {reserva.mesaNumero}
       </span>
-      <StatusBadge cancelada={reserva.cancelada} />
-      {!reserva.cancelada && (
-        <button onClick={() => cancelarReserva(reserva.id)} className="text-xs font-semibold shrink-0 px-2 py-1" style={{ color: "var(--color-text-muted)" }}>
-          Cancelar
-        </button>
-      )}
-    </div>
+      <span className="w-24 shrink-0"><StatusBadge cancelada={reserva.cancelada} /></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" className="shrink-0"><path d="m9 18 6-6-6-6" /></svg>
+    </button>
   );
 }

@@ -74,17 +74,8 @@ h1, h2, h3, .font-display {
   font-weight: 400;
 }
 
-/* Painel administrativo: tipografia técnica/editorial dedicada,
-   separada da identidade de marca usada nas páginas públicas. */
+/* Painel administrativo: interface/tabelas/números em sans técnica (IBM Plex Sans),
+   títulos mantêm a serif editorial da marca (regra h1/h2/h3/.font-display acima). */
 .admin-root {
   font-family: var(--font-admin);
-}
-
-.admin-root h1,
-.admin-root h2,
-.admin-root h3,
-.admin-root .font-display {
-  font-family: var(--font-admin);
-  font-weight: 700;
-  letter-spacing: -0.015em;
 }
