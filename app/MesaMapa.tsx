@@ -10,9 +10,9 @@ const CORES: Record<string, { bg: string; border: string; text: string }> = {
 };
 
 const ZONAS: { nome: string; classe: string }[] = [
-  { nome: "Bar", classe: "col-span-4" },
-  { nome: "Salão", classe: "col-span-4" },
-  { nome: "Jardim", classe: "col-span-4" },
+  { nome: "Palco", classe: "col-span-4" },
+  { nome: "Salão principal", classe: "col-span-4" },
+  { nome: "Salão anexo", classe: "col-span-4" },
 ];
 
 export default function MesaMapa({

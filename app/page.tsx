@@ -7,12 +7,11 @@ import { reservaBrand } from "@/lib/reservaBrand";
 import { baixarIcsDaReserva } from "@/lib/ics";
 import {
   DIAS,
+  HORARIO_FIXO,
   criarReserva,
   dataDoDia,
   formatarDataCurta,
-  horarios,
   mesas,
-  mesasDisponiveisPara,
   statusMesa,
   useReservas,
   type DiaReserva,
@@ -24,21 +23,26 @@ import StepIndicator from "./StepIndicator";
 type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
 
 const ZONAS = [
-  { chave: "Bar" as const, label: "Bar" },
-  { chave: "Salão" as const, label: "Área interna" },
-  { chave: "Jardim" as const, label: "Jardim" },
+  { chave: "Palco" as const, label: "Palco" },
+  { chave: "Salão principal" as const, label: "Salão principal" },
+  { chave: "Salão anexo" as const, label: "Salão anexo" },
 ];
 
 function rotuloZona(zona: Mesa["zona"]): string {
   return ZONAS.find((z) => z.chave === zona)?.label ?? zona;
 }
 
+// Nenhuma mesa individual passa de 6 lugares — grupos maiores não são
+// filtrados por capacidade de mesa (ficam a cargo da equipe combinar mesas).
+const CAPACIDADE_MAXIMA = Math.max(...mesas.map((m) => m.capacidade));
+
 export default function ReservasPage() {
   const { reservas } = useReservas();
   const [etapa, setEtapa] = useState<Etapa>("inicio");
   const [dia, setDia] = useState<DiaReserva>("sexta");
   const [pessoas, setPessoas] = useState(2);
-  const [horario, setHorario] = useState<string | null>(horarios[2]);
+  const [pessoasCustom, setPessoasCustom] = useState(false);
+  const horario = HORARIO_FIXO;
   const [zonaAtiva, setZonaAtiva] = useState<Mesa["zona"] | "todas">("todas");
   const [mesaNumero, setMesaNumero] = useState<string | null>(null);
   const [nome, setNome] = useState("");
@@ -50,9 +54,10 @@ export default function ReservasPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   const mesaObj = mesas.find((m) => m.numero === mesaNumero);
+  const pessoasParaCapacidade = pessoas > CAPACIDADE_MAXIMA ? undefined : pessoas;
 
   async function confirmar() {
-    if (!horario || !mesaNumero || !nome.trim() || !telefone.trim() || enviando) return;
+    if (!mesaNumero || !nome.trim() || !telefone.trim() || enviando) return;
     setEnviando(true);
     setErro(null);
     const { reserva, erro: mensagemErro } = await criarReserva({
@@ -76,7 +81,7 @@ export default function ReservasPage() {
 
   function reiniciar() {
     setEtapa("inicio");
-    setHorario(null);
+    setPessoasCustom(false);
     setMesaNumero(null);
     setNome("");
     setTelefone("");
@@ -93,20 +98,16 @@ export default function ReservasPage() {
         setDia={setDia}
         pessoas={pessoas}
         setPessoas={setPessoas}
-        horario={horario}
-        setHorario={setHorario}
+        pessoasCustom={pessoasCustom}
+        setPessoasCustom={setPessoasCustom}
         onBuscar={() => setEtapa("horario")}
       />
     );
   }
 
   if (etapa === "horario") {
-    const opcoesTempo = horarios.map((h) => ({
-      h,
-      disponivel: mesasDisponiveisPara(reservas, dia, h, pessoas).length > 0,
-    }));
-    const disponiveisCount = opcoesTempo.filter((o) => o.disponivel).length;
     const diaLabelCompleto = `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoDia(dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`;
+    const textoTolerancia = "As reservas são realizadas exclusivamente às 19h30. Pedimos que chegue com até 10 minutos de tolerância para garantir sua reserva.";
 
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
@@ -123,39 +124,20 @@ export default function ReservasPage() {
             <div className="flex flex-col gap-6 pt-4 sm:pt-6">
               <TopoEtapa onVoltar={() => setEtapa("inicio")} etapaNumero={1} />
               <div>
-                <h1 className="font-display text-2xl">Escolha o horário</h1>
+                <h1 className="font-display text-2xl">Sua reserva</h1>
                 <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
                   {DIAS.find((d) => d.chave === dia)?.label}, {formatarDataCurta(dataDoDia(dia))} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                {horarios.map((h) => {
-                  const disponivel = mesasDisponiveisPara(reservas, dia, h, pessoas).length > 0;
-                  const selecionado = horario === h;
-                  return (
-                    <button
-                      key={h}
-                      disabled={!disponivel}
-                      onClick={() => setHorario(h)}
-                      className="py-3 border text-sm font-medium"
-                      style={{
-                        borderRadius: "var(--radius-sm)",
-                        borderColor: selecionado ? "var(--color-primary)" : "var(--color-border)",
-                        background: selecionado ? "var(--color-primary)" : disponivel ? "var(--color-surface)" : "var(--color-border)",
-                        color: selecionado ? "#fff" : disponivel ? "var(--color-dark)" : "var(--color-text-muted)",
-                        opacity: disponivel ? 1 : 0.6,
-                      }}
-                    >
-                      {h}
-                    </button>
-                  );
-                })}
+              <div className="border p-5 flex items-center gap-4" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-md)" }}>
+                <span className="shrink-0" style={{ color: "var(--color-primary)" }}>{ICONE_RELOGIO_GRANDE}</span>
+                <p className="font-display text-xl" style={{ color: "var(--color-dark)" }}>Reserva às 19h30</p>
               </div>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>{textoTolerancia}</p>
 
               <button
                 onClick={() => setEtapa("mesa")}
-                disabled={!horario}
                 className="mt-auto py-3.5 text-sm font-semibold text-white disabled:opacity-40"
                 style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
               >
@@ -179,7 +161,7 @@ export default function ReservasPage() {
           </header>
 
           <div className="flex-1 flex flex-col items-center px-10 py-14">
-            <div className="w-full max-w-[920px] flex flex-col gap-9">
+            <div className="w-full max-w-[720px] flex flex-col gap-9">
               <div className="grid grid-cols-[1fr_auto_1fr] items-center">
                 <button onClick={() => setEtapa("inicio")} className="flex items-center gap-2 text-[14px] font-medium justify-self-start" style={{ color: "var(--color-text-muted)" }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
@@ -191,7 +173,7 @@ export default function ReservasPage() {
 
               <div className="flex flex-col gap-2">
                 <span className="text-[11px] font-semibold tracking-[0.18em] uppercase" style={{ color: "var(--color-text-muted)" }}>Reserva de mesa</span>
-                <h1 className="font-display text-[48px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Escolha o horário</h1>
+                <h1 className="font-display text-[48px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Sua reserva</h1>
                 <p className="text-[16px] mt-1" style={{ color: "var(--color-text-muted)" }}>
                   {diaLabelCompleto} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
                 </p>
@@ -199,55 +181,19 @@ export default function ReservasPage() {
 
               <div style={{ borderTop: "1px solid var(--color-border)" }} />
 
-              <div className="flex items-end justify-between gap-10">
+              <div className="border p-7 flex items-center gap-5" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "18px" }}>
+                <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-primary-soft)", color: "var(--color-primary)" }}>
+                  {ICONE_RELOGIO_GRANDE}
+                </span>
                 <div>
-                  <p className="text-[19px] font-semibold" style={{ color: "var(--color-dark)" }}>Horários disponíveis</p>
-                  <p className="text-[13px] mt-1" style={{ color: "var(--color-text-muted)" }}>
-                    {disponiveisCount} opç{disponiveisCount === 1 ? "ão" : "ões"} disponí{disponiveisCount === 1 ? "vel" : "veis"}
-                  </p>
+                  <p className="font-display text-[28px] leading-tight" style={{ color: "var(--color-dark)" }}>Reserva às 19h30</p>
+                  <p className="text-[14px] mt-2 leading-relaxed max-w-md" style={{ color: "var(--color-text-muted)" }}>{textoTolerancia}</p>
                 </div>
-                <p className="text-[13px] text-right max-w-[280px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-                  Os horários podem variar conforme a disponibilidade da casa. Escolha o que melhor te atende.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                {opcoesTempo.map(({ h, disponivel }) => {
-                  const selecionado = horario === h;
-                  return (
-                    <button
-                      key={h}
-                      disabled={!disponivel}
-                      onClick={() => setHorario(h)}
-                      className="relative flex flex-col gap-1.5 px-6 py-5 border text-left"
-                      style={{
-                        borderRadius: "14px",
-                        borderColor: selecionado ? "var(--color-primary)" : "var(--color-border)",
-                        background: selecionado ? "var(--color-primary)" : disponivel ? "var(--color-surface)" : "var(--color-bg)",
-                        opacity: disponivel ? 1 : 0.55,
-                      }}
-                    >
-                      <span className="font-display text-[27px] leading-none" style={{ color: selecionado ? "#fff" : "var(--color-dark)" }}>{h}</span>
-                      <span
-                        className="text-[11px] font-semibold tracking-[0.1em] uppercase"
-                        style={{ color: selecionado ? "rgba(255,255,255,0.85)" : "var(--color-text-muted)" }}
-                      >
-                        {disponivel ? (selecionado ? "Selecionado" : "Disponível") : "Indisponível"}
-                      </span>
-                      {selecionado && (
-                        <span className="absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.22)" }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
               </div>
 
               <button
                 onClick={() => setEtapa("mesa")}
-                disabled={!horario}
-                className="w-full py-4 text-[15px] font-semibold text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2"
                 style={{ background: "var(--color-primary)", borderRadius: "14px" }}
               >
                 Continuar
@@ -260,7 +206,7 @@ export default function ReservasPage() {
     );
   }
 
-  if (etapa === "mesa" && horario) {
+  if (etapa === "mesa") {
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
         {/* ===== MOBILE — inalterado ===== */}
@@ -299,10 +245,10 @@ export default function ReservasPage() {
               <div className="flex flex-col gap-5">
                 {ZONAS.filter((z) => zonaAtiva === "todas" || zonaAtiva === z.chave).map((z) => (
                   <div key={z.chave} className="flex flex-col gap-2.5">
-                    <span className="text-[11px] font-semibold tracking-wide uppercase" style={{ color: "var(--color-text-muted)" }}>{z.chave === "Salão" ? "Salão" : z.chave}</span>
+                    <span className="text-[11px] font-semibold tracking-wide uppercase" style={{ color: "var(--color-text-muted)" }}>{z.chave}</span>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
                       {mesas.filter((m) => m.zona === z.chave).map((m) => {
-                        const status = statusMesa(reservas, dia, horario, m, pessoas);
+                        const status = statusMesa(reservas, dia, horario, m, pessoasParaCapacidade);
                         const selecionada = mesaNumero === m.numero;
                         const indisponivel = status !== "livre" && !selecionada;
                         const bg = selecionada ? "var(--color-primary)" : status === "ocupada" ? "var(--color-secondary)" : indisponivel ? "var(--color-border)" : "var(--color-accent-soft)";
@@ -418,13 +364,13 @@ export default function ReservasPage() {
                       <div key={z.chave} className="flex flex-col gap-4">
                         <div className="flex items-center gap-4">
                           <span className="text-[12px] font-bold tracking-[0.14em] uppercase shrink-0" style={{ color: "var(--color-dark)" }}>
-                            {z.chave === "Salão" ? "Salão" : z.chave}
+                            {z.chave}
                           </span>
                           <span className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
                         </div>
                         <div className="grid grid-cols-4 gap-6">
                           {mesas.filter((m) => m.zona === z.chave).map((m) => {
-                            const status = statusMesa(reservas, dia, horario, m, pessoas);
+                            const status = statusMesa(reservas, dia, horario, m, pessoasParaCapacidade);
                             const selecionada = mesaNumero === m.numero;
                             const indisponivel = status !== "livre" && !selecionada;
                             const bg = selecionada ? "var(--color-primary)" : indisponivel ? "var(--color-border)" : "var(--color-accent-soft)";
@@ -849,9 +795,9 @@ function LegendaDotDesktop({ cor, label }: { cor: string; label: string }) {
 }
 
 const DESCRICAO_AMBIENTE: Record<Mesa["zona"], string> = {
-  Bar: "o clima descontraído do bar",
-  Salão: "o ambiente aconchegante do salão",
-  Jardim: "o charme a céu aberto do jardim",
+  Palco: "a energia de ficar pertinho do palco",
+  "Salão principal": "o ambiente aconchegante do salão principal",
+  "Salão anexo": "o clima mais reservado do salão anexo",
 };
 
 const ICONE_CALENDARIO = (
@@ -862,6 +808,9 @@ const ICONE_PESSOA = (
 );
 const ICONE_RELOGIO = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+);
+const ICONE_RELOGIO_GRANDE = (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
 );
 const ICONE_MESA = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
@@ -942,35 +891,103 @@ function CampoReserva({
   );
 }
 
+function CampoPessoas({
+  pessoas,
+  setPessoas,
+  custom,
+  setCustom,
+  mostrarSeta = false,
+  divisor = false,
+  compacto = false,
+}: {
+  pessoas: number;
+  setPessoas: (n: number) => void;
+  custom: boolean;
+  setCustom: (b: boolean) => void;
+  mostrarSeta?: boolean;
+  divisor?: boolean;
+  compacto?: boolean;
+}) {
+  const opcoesPessoas = [
+    ...Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+      <option key={n} value={n}>{n} pessoa{n === 1 ? "" : "s"}</option>
+    )),
+    <option key="mais" value="mais">Mais de 10 pessoas</option>,
+  ];
+
+  if (custom) {
+    return (
+      <div
+        className={`relative flex items-center flex-1 min-w-0 ${compacto ? "gap-2 px-3.5 py-4" : "gap-3 px-4 py-3 sm:px-5 sm:py-2.5"}`}
+        style={divisor ? { borderLeft: "1px solid var(--color-border)" } : undefined}
+      >
+        <span className={`shrink-0 ${compacto ? "scale-[0.82]" : ""}`} style={{ color: "var(--color-primary)" }}>{ICONE_PESSOA}</span>
+        <div className="flex-1 min-w-0 flex flex-col leading-tight">
+          <span className={compacto ? "text-[10.5px]" : "text-[11px]"} style={{ color: "var(--color-text-muted)" }}>Pessoas</span>
+          <input
+            type="number"
+            min={11}
+            value={pessoas}
+            onChange={(e) => setPessoas(Math.max(11, Number(e.target.value) || 11))}
+            className={`font-semibold bg-transparent outline-none w-full ${compacto ? "text-[13px]" : "text-[13.5px]"}`}
+            style={{ color: "var(--color-dark)" }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => { setCustom(false); setPessoas(10); }}
+          aria-label="Escolher outra quantidade"
+          className="shrink-0"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <CampoReserva
+      label="Pessoas"
+      icon={ICONE_PESSOA}
+      displayValue={`${pessoas} pessoa${pessoas === 1 ? "" : "s"}`}
+      value={String(pessoas)}
+      onChange={(v) => {
+        if (v === "mais") { setCustom(true); setPessoas(11); }
+        else setPessoas(Number(v));
+      }}
+      mostrarSeta={mostrarSeta}
+      divisor={divisor}
+      compacto={compacto}
+    >
+      {opcoesPessoas}
+    </CampoReserva>
+  );
+}
+
 function TelaInicio({
   dia,
   setDia,
   pessoas,
   setPessoas,
-  horario,
-  setHorario,
+  pessoasCustom,
+  setPessoasCustom,
   onBuscar,
 }: {
   dia: DiaReserva;
   setDia: (d: DiaReserva) => void;
   pessoas: number;
   setPessoas: (n: number) => void;
-  horario: string | null;
-  setHorario: (h: string) => void;
+  pessoasCustom: boolean;
+  setPessoasCustom: (b: boolean) => void;
   onBuscar: () => void;
 }) {
   const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
-  const pessoasLabel = `${pessoas} pessoa${pessoas === 1 ? "" : "s"}`;
   const diaLabelCompacto = formatarDataCurta(dataDoDia(dia));
-  const horarioLabel = horario ?? "Escolher";
 
   const opcoesDia = DIAS.map((d) => (
     <option key={d.chave} value={d.chave}>{d.label.split("-")[0]}, {formatarDataCurta(dataDoDia(d.chave))}</option>
   ));
-  const opcoesPessoas = Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-    <option key={n} value={n}>{n} pessoa{n === 1 ? "" : "s"}</option>
-  ));
-  const opcoesHorario = horarios.map((h) => <option key={h} value={h}>{h}</option>);
 
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
@@ -1030,13 +1047,7 @@ function TelaInicio({
             <CampoReserva label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabel} value={dia} onChange={(v) => setDia(v as DiaReserva)} mostrarSeta>
               {opcoesDia}
             </CampoReserva>
-            <CampoReserva label="Pessoas" icon={ICONE_PESSOA} displayValue={pessoasLabel} value={String(pessoas)} onChange={(v) => setPessoas(Number(v))} mostrarSeta>
-              {opcoesPessoas}
-            </CampoReserva>
-            <CampoReserva label="Horário" icon={ICONE_RELOGIO} displayValue={horarioLabel} value={horario ?? ""} onChange={setHorario} mostrarSeta>
-              <option value="" disabled>Escolher horário</option>
-              {opcoesHorario}
-            </CampoReserva>
+            <CampoPessoas pessoas={pessoas} setPessoas={setPessoas} custom={pessoasCustom} setCustom={setPessoasCustom} mostrarSeta />
             <div className="p-3">
               <button
                 onClick={onBuscar}
@@ -1110,13 +1121,7 @@ function TelaInicio({
                   <CampoReserva compacto mostrarSeta label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabelCompacto} value={dia} onChange={(v) => setDia(v as DiaReserva)}>
                     {opcoesDia}
                   </CampoReserva>
-                  <CampoReserva compacto mostrarSeta divisor label="Pessoas" icon={ICONE_PESSOA} displayValue={pessoasLabel} value={String(pessoas)} onChange={(v) => setPessoas(Number(v))}>
-                    {opcoesPessoas}
-                  </CampoReserva>
-                  <CampoReserva compacto mostrarSeta divisor label="Horário" icon={ICONE_RELOGIO} displayValue={horarioLabel} value={horario ?? ""} onChange={setHorario}>
-                    <option value="" disabled>Escolher horário</option>
-                    {opcoesHorario}
-                  </CampoReserva>
+                  <CampoPessoas compacto divisor pessoas={pessoas} setPessoas={setPessoas} custom={pessoasCustom} setCustom={setPessoasCustom} />
                 </div>
 
                 <div className="p-4">

@@ -3,10 +3,10 @@
 import { useState } from "react";
 import {
   DIAS,
+  HORARIO_FIXO,
   criarReserva,
   dataDoDia,
   formatarDataCurta,
-  horarios,
   type DiaReserva,
   type Reserva,
 } from "@/lib/reservas";
@@ -22,7 +22,7 @@ export default function NewReservationModal({
   onFechar: () => void;
 }) {
   const [dia, setDia] = useState<DiaReserva>(diaInicial);
-  const [horario, setHorario] = useState(horarios[2]);
+  const horario = HORARIO_FIXO;
   const [pessoas, setPessoas] = useState(2);
   const [mesaNumero, setMesaNumero] = useState<string | null>(null);
   const [nome, setNome] = useState("");
@@ -83,24 +83,19 @@ export default function NewReservationModal({
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 items-end">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Horário</label>
-            <select
-              value={horario}
-              onChange={(e) => { setHorario(e.target.value); setMesaNumero(null); }}
-              className="border px-3 py-2 text-sm outline-none bg-transparent"
-              style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}
-            >
-              {horarios.map((h) => <option key={h} value={h}>{h}</option>)}
-            </select>
+            <div className="border px-3 py-2 text-sm" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}>
+              {horario} <span className="text-xs">(fixo)</span>
+            </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Pessoas</label>
             <div className="flex items-center justify-between border px-3 py-2" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}>
               <button onClick={() => { setPessoas((p) => Math.max(1, p - 1)); setMesaNumero(null); }} className="text-lg font-semibold w-5">−</button>
               <span className="text-sm font-semibold">{pessoas}</span>
-              <button onClick={() => { setPessoas((p) => Math.min(10, p + 1)); setMesaNumero(null); }} className="text-lg font-semibold w-5">+</button>
+              <button onClick={() => { setPessoas((p) => p + 1); setMesaNumero(null); }} className="text-lg font-semibold w-5">+</button>
             </div>
           </div>
         </div>

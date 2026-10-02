@@ -8,24 +8,26 @@ export const dataHoje = new Date(2026, 8, 30);
 
 export type FormatoMesa = "redonda" | "quadrada";
 
-export type Mesa = { numero: string; capacidade: number; formato: FormatoMesa; zona: "Bar" | "Salão" | "Jardim" };
+export type ZonaMesa = "Palco" | "Salão principal" | "Salão anexo";
+
+export type Mesa = { numero: string; capacidade: number; formato: FormatoMesa; zona: ZonaMesa };
 
 export const mesas: Mesa[] = [
-  { numero: "01", capacidade: 2, formato: "redonda", zona: "Bar" },
-  { numero: "02", capacidade: 2, formato: "redonda", zona: "Bar" },
-  { numero: "03", capacidade: 2, formato: "redonda", zona: "Bar" },
-  { numero: "04", capacidade: 2, formato: "redonda", zona: "Bar" },
-  { numero: "05", capacidade: 4, formato: "redonda", zona: "Salão" },
-  { numero: "06", capacidade: 4, formato: "redonda", zona: "Salão" },
-  { numero: "07", capacidade: 4, formato: "redonda", zona: "Salão" },
-  { numero: "08", capacidade: 4, formato: "redonda", zona: "Salão" },
-  { numero: "09", capacidade: 6, formato: "redonda", zona: "Salão" },
-  { numero: "10", capacidade: 6, formato: "redonda", zona: "Salão" },
-  { numero: "11", capacidade: 4, formato: "redonda", zona: "Salão" },
-  { numero: "12", capacidade: 4, formato: "quadrada", zona: "Jardim" },
-  { numero: "13", capacidade: 2, formato: "quadrada", zona: "Jardim" },
-  { numero: "14", capacidade: 2, formato: "quadrada", zona: "Jardim" },
-  { numero: "15", capacidade: 4, formato: "quadrada", zona: "Jardim" },
+  { numero: "01", capacidade: 2, formato: "redonda", zona: "Palco" },
+  { numero: "02", capacidade: 2, formato: "redonda", zona: "Palco" },
+  { numero: "03", capacidade: 2, formato: "redonda", zona: "Palco" },
+  { numero: "04", capacidade: 2, formato: "redonda", zona: "Palco" },
+  { numero: "05", capacidade: 4, formato: "redonda", zona: "Salão principal" },
+  { numero: "06", capacidade: 4, formato: "redonda", zona: "Salão principal" },
+  { numero: "07", capacidade: 4, formato: "redonda", zona: "Salão principal" },
+  { numero: "08", capacidade: 4, formato: "redonda", zona: "Salão principal" },
+  { numero: "09", capacidade: 6, formato: "redonda", zona: "Salão principal" },
+  { numero: "10", capacidade: 6, formato: "redonda", zona: "Salão principal" },
+  { numero: "11", capacidade: 4, formato: "redonda", zona: "Salão principal" },
+  { numero: "12", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "13", capacidade: 2, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "14", capacidade: 2, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "15", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
 ];
 
 export type DiaReserva = "sexta" | "sabado" | "domingo";
@@ -36,7 +38,9 @@ export const DIAS: { chave: DiaReserva; label: string; diaSemana: number }[] = [
   { chave: "domingo", label: "Domingo", diaSemana: 0 },
 ];
 
-export const horarios = ["19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00"];
+// O ZéPelin só recebe reservas às 19h30 — não há seletor de horário na interface.
+export const HORARIO_FIXO = "19:30";
+export const horarios = [HORARIO_FIXO];
 
 function proximaData(diaSemanaAlvo: number): Date {
   const base = new Date(dataHoje);

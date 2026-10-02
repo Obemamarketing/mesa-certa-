@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
   DIAS,
+  HORARIO_FIXO,
   cancelarReserva,
   dataDoDia,
   formatarDataCurta,
@@ -46,7 +47,7 @@ export default function ReservasAdminPage() {
   const { reservas, carregando } = useReservas();
   const [diaIndex, setDiaIndex] = useState(0);
   const [painelMobile, setPainelMobile] = useState<"lista" | "planta">("lista");
-  const [horarioPlanta, setHorarioPlanta] = useState(horarios[2]);
+  const [horarioPlanta, setHorarioPlanta] = useState(HORARIO_FIXO);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"dia" | "todos">("dia");
   const [modalAberto, setModalAberto] = useState(false);
@@ -270,14 +271,9 @@ export default function ReservasAdminPage() {
           >
             <div className="flex items-center justify-between gap-2">
               <p className="font-display text-lg whitespace-nowrap">Planta de mesas</p>
-              <select
-                value={horarioPlanta}
-                onChange={(e) => setHorarioPlanta(e.target.value)}
-                className="border px-2.5 py-1.5 text-xs outline-none shrink-0"
-                style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}
-              >
-                {horarios.map((h) => <option key={h} value={h}>{h}</option>)}
-              </select>
+              <span className="text-xs font-medium px-2.5 py-1.5 shrink-0" style={{ color: "var(--color-text-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)" }}>
+                {horarioPlanta} · fixo
+              </span>
             </div>
 
             <div className={mesaFocoObj ? "grid grid-cols-1 xl:grid-cols-[1fr_200px] gap-4 items-start" : ""}>
