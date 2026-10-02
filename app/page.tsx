@@ -575,8 +575,8 @@ function TelaInicio({
             </nav>
             <Link
               href="/consulta"
-              className="flex items-center gap-1.5 text-[12.5px] font-medium shrink-0 whitespace-nowrap"
-              style={{ color: "var(--color-text-muted)" }}
+              className="flex items-center gap-2 text-[13px] font-semibold px-5 py-2.5 rounded-full border shrink-0 whitespace-nowrap"
+              style={{ borderColor: "var(--color-primary)", color: "var(--color-primary)" }}
             >
               Consultar reserva
               {ICONE_CALENDARIO}
@@ -584,7 +584,7 @@ function TelaInicio({
           </div>
 
           {/* CONTEÚDO — centralizado verticalmente, ocupando melhor a área esquerda */}
-          <div className="flex-1 flex flex-col justify-center gap-8 max-w-[560px]">
+          <div className="flex-1 flex flex-col justify-center gap-7 max-w-[580px]">
             <span className="text-[11px] tracking-[0.22em] uppercase" style={{ color: "var(--color-text-muted)" }}>
               Restaurante &amp; Bar
             </span>
@@ -595,30 +595,51 @@ function TelaInicio({
               Reserve sua mesa e viva a experiência {reservaBrand.restauranteAtual}.
             </p>
 
-            {/* FORMULÁRIO — elemento central, claro e refinado */}
-            <div
-              className="flex items-stretch overflow-hidden border"
-              style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "999px" }}
-            >
-              <CampoReserva compacto label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabelCompacto} value={dia} onChange={(v) => setDia(v as DiaReserva)}>
-                {opcoesDia}
-              </CampoReserva>
-              <CampoReserva compacto divisor label="Pessoas" icon={ICONE_PESSOA} displayValue={pessoasLabel} value={String(pessoas)} onChange={(v) => setPessoas(Number(v))}>
-                {opcoesPessoas}
-              </CampoReserva>
-              <CampoReserva compacto divisor label="Horário" icon={ICONE_RELOGIO} displayValue={horarioLabel} value={horario ?? ""} onChange={setHorario}>
-                <option value="" disabled>Escolher horário</option>
-                {opcoesHorario}
-              </CampoReserva>
-              <div className="p-2 flex items-center shrink-0">
-                <button
-                  onClick={onBuscar}
-                  className="h-full px-5 text-[13.5px] font-semibold text-white whitespace-nowrap flex items-center gap-1.5"
-                  style={{ background: "var(--color-primary)", borderRadius: "999px" }}
-                >
-                  Buscar mesas
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </button>
+            {/* BLOCO DE RESERVA — elemento central, de ação, da composição */}
+            <div>
+              <div
+                className="border overflow-hidden"
+                style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "20px" }}
+              >
+                <div className="px-6 py-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[11px] font-bold tracking-[0.14em] uppercase" style={{ color: "var(--color-primary)" }}>
+                    Reserve sua mesa
+                  </p>
+                  <p className="text-[13.5px] mt-1.5" style={{ color: "var(--color-text-muted)" }}>
+                    Escolha a data, o horário e venha viver uma noite especial no {reservaBrand.restauranteAtual}.
+                  </p>
+                </div>
+
+                <div className="flex items-stretch" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <CampoReserva compacto mostrarSeta label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabelCompacto} value={dia} onChange={(v) => setDia(v as DiaReserva)}>
+                    {opcoesDia}
+                  </CampoReserva>
+                  <CampoReserva compacto mostrarSeta divisor label="Pessoas" icon={ICONE_PESSOA} displayValue={pessoasLabel} value={String(pessoas)} onChange={(v) => setPessoas(Number(v))}>
+                    {opcoesPessoas}
+                  </CampoReserva>
+                  <CampoReserva compacto mostrarSeta divisor label="Horário" icon={ICONE_RELOGIO} displayValue={horarioLabel} value={horario ?? ""} onChange={setHorario}>
+                    <option value="" disabled>Escolher horário</option>
+                    {opcoesHorario}
+                  </CampoReserva>
+                </div>
+
+                <div className="p-4">
+                  <button
+                    onClick={onBuscar}
+                    className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2"
+                    style={{ background: "var(--color-primary)", borderRadius: "12px" }}
+                  >
+                    Buscar mesas
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-4">
+                <span className="w-7 h-px" style={{ background: "var(--color-border)" }} />
+                <span className="text-[10.5px] font-medium tracking-[0.16em] uppercase" style={{ color: "var(--color-text-muted)" }}>
+                  Reservas online · Confirmação imediata
+                </span>
               </div>
             </div>
           </div>
