@@ -514,6 +514,166 @@ export default function ReservasPage() {
     );
   }
 
+  if (etapa === "dados") {
+    const diaLabelCompleto = horario && `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoDia(dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`;
+
+    return (
+      <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {/* ===== MOBILE — inalterado ===== */}
+        <div className="lg:hidden flex-1 flex flex-col">
+          <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
+            <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+            <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
+              Consultar reserva
+            </Link>
+          </header>
+
+          <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
+            <div className="flex flex-col gap-5 pt-4 sm:pt-6">
+              <TopoEtapa onVoltar={() => setEtapa("mesa")} etapaNumero={3} />
+              <div>
+                <h1 className="font-display text-2xl">Quase tudo pronto.</h1>
+                <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Precisamos de alguns dados para confirmar sua reserva.</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Campo label="Nome completo">
+                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" className="w-full outline-none text-sm bg-transparent" />
+                </Campo>
+                <Campo label="WhatsApp">
+                  <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" className="w-full outline-none text-sm bg-transparent" />
+                </Campo>
+                <Campo label="E-mail">
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" className="w-full outline-none text-sm bg-transparent" />
+                </Campo>
+                <Campo label="Observação (opcional)">
+                  <textarea
+                    value={observacao}
+                    onChange={(e) => setObservacao(e.target.value)}
+                    placeholder="Ex: gostaria de uma mesa mais tranquila"
+                    rows={2}
+                    className="w-full outline-none text-sm bg-transparent resize-none"
+                  />
+                </Campo>
+              </div>
+
+              <button
+                onClick={() => setEtapa("revisar")}
+                disabled={!nome.trim() || !telefone.trim()}
+                className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+              >
+                Revisar reserva
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== DESKTOP — redesign ===== */}
+        <div className="hidden lg:flex flex-col flex-1">
+          <header className="flex items-center justify-between px-10 py-5 border-b" style={{ borderColor: "var(--color-border)" }}>
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={46} height={46} className="rounded-full" />
+              <span className="font-display text-[21px] leading-none" style={{ color: "var(--color-dark)" }}>{reservaBrand.restauranteAtual}</span>
+            </Link>
+            <Link href="/consulta" className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: "var(--color-primary)" }}>
+              Consultar reserva
+              {ICONE_CALENDARIO}
+            </Link>
+          </header>
+
+          <div className="flex-1 flex flex-col items-center px-10 py-14">
+            <div className="w-full max-w-[1280px] flex flex-col gap-9">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+                <button onClick={() => setEtapa("mesa")} className="flex items-center gap-2 text-[14px] font-medium justify-self-start" style={{ color: "var(--color-text-muted)" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                  Voltar
+                </button>
+                <StepIndicatorDesktop atual={3} />
+                <span />
+              </div>
+
+              <div className="grid grid-cols-[1fr_360px] gap-16 items-start">
+                {/* ESQUERDA — formulário */}
+                <div className="flex flex-col gap-7">
+                  <div className="flex flex-col gap-2">
+                    <h1 className="font-display text-[44px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Quase tudo pronto.</h1>
+                    <p className="text-[16px]" style={{ color: "var(--color-text-muted)" }}>Precisamos de alguns dados para confirmar sua reserva.</p>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <CampoDesktop label="Nome completo">
+                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                    </CampoDesktop>
+                    <div className="grid grid-cols-2 gap-4">
+                      <CampoDesktop label="WhatsApp">
+                        <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      </CampoDesktop>
+                      <CampoDesktop label="E-mail">
+                        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      </CampoDesktop>
+                    </div>
+                    <CampoDesktop label="Observação (opcional)">
+                      <textarea
+                        value={observacao}
+                        onChange={(e) => setObservacao(e.target.value)}
+                        placeholder="Ex: gostaria de uma mesa mais tranquila"
+                        rows={2}
+                        className="w-full outline-none text-[15px] bg-transparent resize-none"
+                        style={{ color: "var(--color-dark)" }}
+                      />
+                    </CampoDesktop>
+                  </div>
+
+                  <button
+                    onClick={() => setEtapa("revisar")}
+                    disabled={!nome.trim() || !telefone.trim()}
+                    className="w-full py-4 text-[15px] font-semibold text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                    style={{ background: "var(--color-primary)", borderRadius: "14px" }}
+                  >
+                    Revisar reserva
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </button>
+                </div>
+
+                {/* DIREITA — resumo da reserva */}
+                <div className="border p-6 flex flex-col gap-1 sticky top-8" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "18px" }}>
+                  <span className="text-[11px] font-semibold tracking-[0.14em] uppercase pb-4" style={{ color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>
+                    Sua reserva
+                  </span>
+
+                  <LinhaResumoDesktop icon={ICONE_CALENDARIO}>{diaLabelCompleto}</LinhaResumoDesktop>
+                  <LinhaResumoDesktop icon={ICONE_RELOGIO}>{horario}</LinhaResumoDesktop>
+                  <LinhaResumoDesktop icon={ICONE_GRUPO}>{pessoas} pessoa{pessoas === 1 ? "" : "s"}</LinhaResumoDesktop>
+                  {mesaObj && (
+                    <LinhaResumoDesktop icon={ICONE_MESA} ultima>
+                      <span>Mesa {mesaObj.numero}</span>
+                      <span className="block text-[13px] mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                        {mesaObj.capacidade} lugares · {rotuloZona(mesaObj.zona)}
+                      </span>
+                    </LinhaResumoDesktop>
+                  )}
+
+                  <div className="flex items-start gap-3 p-4 mt-4" style={{ background: "var(--color-accent-soft)", borderRadius: "14px" }}>
+                    <span className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: "var(--color-accent-dark)" }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    </span>
+                    <div>
+                      <p className="text-[14px] font-semibold" style={{ color: "var(--color-dark)" }}>Quase lá!</p>
+                      <p className="text-[13px] mt-0.5 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                        Revise seus dados para confirmar sua reserva.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
       {/* HEADER */}
@@ -525,47 +685,6 @@ export default function ReservasPage() {
       </header>
 
       <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
-        {/* TELA 4 — DADOS */}
-        {etapa === "dados" && (
-          <div className="flex flex-col gap-5 pt-4 sm:pt-6">
-            <TopoEtapa onVoltar={() => setEtapa("mesa")} etapaNumero={3} />
-            <div>
-              <h1 className="font-display text-2xl">Quase tudo pronto.</h1>
-              <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Precisamos de alguns dados para confirmar sua reserva.</p>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <Campo label="Nome completo">
-                <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" className="w-full outline-none text-sm bg-transparent" />
-              </Campo>
-              <Campo label="WhatsApp">
-                <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" className="w-full outline-none text-sm bg-transparent" />
-              </Campo>
-              <Campo label="E-mail">
-                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" className="w-full outline-none text-sm bg-transparent" />
-              </Campo>
-              <Campo label="Observação (opcional)">
-                <textarea
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  placeholder="Ex: gostaria de uma mesa mais tranquila"
-                  rows={2}
-                  className="w-full outline-none text-sm bg-transparent resize-none"
-                />
-              </Campo>
-            </div>
-
-            <button
-              onClick={() => setEtapa("revisar")}
-              disabled={!nome.trim() || !telefone.trim()}
-              className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
-              style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
-            >
-              Revisar reserva
-            </button>
-          </div>
-        )}
-
         {/* TELA 5 — REVISAR */}
         {etapa === "revisar" && horario && mesaObj && (
           <div className="flex flex-col gap-5 pt-4 sm:pt-6">
@@ -750,6 +869,30 @@ const ICONE_MESA = (
 const ICONE_PIN = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M12 21s-7-7.5-7-12a7 7 0 0 1 14 0c0 4.5-7 12-7 12Z" /><circle cx="12" cy="9" r="2.5" /></svg>
 );
+const ICONE_GRUPO = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="8.5" cy="8" r="3" /><circle cx="16.5" cy="9.5" r="2.3" /><path d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M14.5 15c2.3.2 4 2 4 4.3" /></svg>
+);
+
+function CampoDesktop({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="border px-5 py-3.5 flex flex-col gap-1" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "14px" }}>
+      <label className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function LinhaResumoDesktop({ icon, children, ultima = false }: { icon: React.ReactNode; children: React.ReactNode; ultima?: boolean }) {
+  return (
+    <div
+      className="flex items-start gap-3 py-4"
+      style={!ultima ? { borderBottom: "1px solid var(--color-border)" } : undefined}
+    >
+      <span className="shrink-0 mt-0.5" style={{ color: "var(--color-primary)" }}>{icon}</span>
+      <span className="text-[14.5px] font-medium" style={{ color: "var(--color-dark)" }}>{children}</span>
+    </div>
+  );
+}
 
 function CampoReserva({
   label,
