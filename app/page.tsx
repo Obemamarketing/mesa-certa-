@@ -100,6 +100,166 @@ export default function ReservasPage() {
     );
   }
 
+  if (etapa === "horario") {
+    const opcoesTempo = horarios.map((h) => ({
+      h,
+      disponivel: mesasDisponiveisPara(reservas, dia, h, pessoas).length > 0,
+    }));
+    const disponiveisCount = opcoesTempo.filter((o) => o.disponivel).length;
+    const diaLabelCompleto = `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoDia(dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`;
+
+    return (
+      <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {/* ===== MOBILE — inalterado ===== */}
+        <div className="lg:hidden flex-1 flex flex-col">
+          <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
+            <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+            <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
+              Consultar reserva
+            </Link>
+          </header>
+
+          <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
+            <div className="flex flex-col gap-6 pt-4 sm:pt-6">
+              <TopoEtapa onVoltar={() => setEtapa("inicio")} etapaNumero={1} />
+              <div>
+                <h1 className="font-display text-2xl">Escolha o horário</h1>
+                <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
+                  {DIAS.find((d) => d.chave === dia)?.label}, {formatarDataCurta(dataDoDia(dia))} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                {horarios.map((h) => {
+                  const disponivel = mesasDisponiveisPara(reservas, dia, h, pessoas).length > 0;
+                  const selecionado = horario === h;
+                  return (
+                    <button
+                      key={h}
+                      disabled={!disponivel}
+                      onClick={() => setHorario(h)}
+                      className="py-3 border text-sm font-medium"
+                      style={{
+                        borderRadius: "var(--radius-sm)",
+                        borderColor: selecionado ? "var(--color-primary)" : "var(--color-border)",
+                        background: selecionado ? "var(--color-primary)" : disponivel ? "var(--color-surface)" : "var(--color-border)",
+                        color: selecionado ? "#fff" : disponivel ? "var(--color-dark)" : "var(--color-text-muted)",
+                        opacity: disponivel ? 1 : 0.6,
+                      }}
+                    >
+                      {h}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setEtapa("mesa")}
+                disabled={!horario}
+                className="mt-auto py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== DESKTOP — redesign ===== */}
+        <div className="hidden lg:flex flex-col flex-1">
+          <header className="flex items-center justify-between px-10 py-5 border-b" style={{ borderColor: "var(--color-border)" }}>
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={46} height={46} className="rounded-full" />
+              <span className="font-display text-[21px] leading-none" style={{ color: "var(--color-dark)" }}>{reservaBrand.restauranteAtual}</span>
+            </Link>
+            <Link href="/consulta" className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: "var(--color-primary)" }}>
+              Consultar reserva
+              {ICONE_CALENDARIO}
+            </Link>
+          </header>
+
+          <div className="flex-1 flex flex-col items-center px-10 py-14">
+            <div className="w-full max-w-[920px] flex flex-col gap-9">
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+                <button onClick={() => setEtapa("inicio")} className="flex items-center gap-2 text-[14px] font-medium justify-self-start" style={{ color: "var(--color-text-muted)" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                  Voltar
+                </button>
+                <StepIndicatorDesktop atual={1} />
+                <span />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-[11px] font-semibold tracking-[0.18em] uppercase" style={{ color: "var(--color-text-muted)" }}>Reserva de mesa</span>
+                <h1 className="font-display text-[48px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Escolha o horário</h1>
+                <p className="text-[16px] mt-1" style={{ color: "var(--color-text-muted)" }}>
+                  {diaLabelCompleto} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
+                </p>
+              </div>
+
+              <div style={{ borderTop: "1px solid var(--color-border)" }} />
+
+              <div className="flex items-end justify-between gap-10">
+                <div>
+                  <p className="text-[19px] font-semibold" style={{ color: "var(--color-dark)" }}>Horários disponíveis</p>
+                  <p className="text-[13px] mt-1" style={{ color: "var(--color-text-muted)" }}>
+                    {disponiveisCount} opç{disponiveisCount === 1 ? "ão" : "ões"} disponí{disponiveisCount === 1 ? "vel" : "veis"}
+                  </p>
+                </div>
+                <p className="text-[13px] text-right max-w-[280px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                  Os horários podem variar conforme a disponibilidade da casa. Escolha o que melhor te atende.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                {opcoesTempo.map(({ h, disponivel }) => {
+                  const selecionado = horario === h;
+                  return (
+                    <button
+                      key={h}
+                      disabled={!disponivel}
+                      onClick={() => setHorario(h)}
+                      className="relative flex flex-col gap-1.5 px-6 py-5 border text-left"
+                      style={{
+                        borderRadius: "14px",
+                        borderColor: selecionado ? "var(--color-primary)" : "var(--color-border)",
+                        background: selecionado ? "var(--color-primary)" : disponivel ? "var(--color-surface)" : "var(--color-bg)",
+                        opacity: disponivel ? 1 : 0.55,
+                      }}
+                    >
+                      <span className="font-display text-[27px] leading-none" style={{ color: selecionado ? "#fff" : "var(--color-dark)" }}>{h}</span>
+                      <span
+                        className="text-[11px] font-semibold tracking-[0.1em] uppercase"
+                        style={{ color: selecionado ? "rgba(255,255,255,0.85)" : "var(--color-text-muted)" }}
+                      >
+                        {disponivel ? (selecionado ? "Selecionado" : "Disponível") : "Indisponível"}
+                      </span>
+                      {selecionado && (
+                        <span className="absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.22)" }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setEtapa("mesa")}
+                disabled={!horario}
+                className="w-full py-4 text-[15px] font-semibold text-white disabled:opacity-40 flex items-center justify-center gap-2"
+                style={{ background: "var(--color-primary)", borderRadius: "14px" }}
+              >
+                Continuar
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
       {/* HEADER */}
@@ -111,52 +271,6 @@ export default function ReservasPage() {
       </header>
 
       <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
-        {/* TELA 2 — HORÁRIO */}
-        {etapa === "horario" && (
-          <div className="flex flex-col gap-6 pt-4 sm:pt-6">
-            <TopoEtapa onVoltar={() => setEtapa("inicio")} etapaNumero={1} />
-            <div>
-              <h1 className="font-display text-2xl">Escolha o horário</h1>
-              <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
-                {DIAS.find((d) => d.chave === dia)?.label}, {formatarDataCurta(dataDoDia(dia))} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5">
-              {horarios.map((h) => {
-                const disponivel = mesasDisponiveisPara(reservas, dia, h, pessoas).length > 0;
-                const selecionado = horario === h;
-                return (
-                  <button
-                    key={h}
-                    disabled={!disponivel}
-                    onClick={() => setHorario(h)}
-                    className="py-3 border text-sm font-medium"
-                    style={{
-                      borderRadius: "var(--radius-sm)",
-                      borderColor: selecionado ? "var(--color-primary)" : "var(--color-border)",
-                      background: selecionado ? "var(--color-primary)" : disponivel ? "var(--color-surface)" : "var(--color-border)",
-                      color: selecionado ? "#fff" : disponivel ? "var(--color-dark)" : "var(--color-text-muted)",
-                      opacity: disponivel ? 1 : 0.6,
-                    }}
-                  >
-                    {h}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => setEtapa("mesa")}
-              disabled={!horario}
-              className="mt-auto py-3.5 text-sm font-semibold text-white disabled:opacity-40"
-              style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
-            >
-              Continuar
-            </button>
-          </div>
-        )}
-
         {/* TELA 3 — MESA */}
         {etapa === "mesa" && horario && (
           <div className="flex flex-col gap-5 pt-4 sm:pt-6">
@@ -375,6 +489,45 @@ function TopoEtapa({ onVoltar, etapaNumero }: { onVoltar: () => void; etapaNumer
         ← Voltar
       </button>
       <StepIndicator atual={etapaNumero} />
+    </div>
+  );
+}
+
+const ETAPAS_DESKTOP = ["Horário", "Mesa", "Dados", "Confirmação"];
+
+function StepIndicatorDesktop({ atual }: { atual: number }) {
+  return (
+    <div className="flex items-center justify-self-center">
+      {ETAPAS_DESKTOP.map((rotulo, i) => {
+        const numero = i + 1;
+        const ativo = numero === atual;
+        const concluido = numero < atual;
+        return (
+          <div key={rotulo} className="flex items-center">
+            <div className="flex flex-col items-center gap-2">
+              <span
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-semibold"
+                style={{
+                  background: ativo || concluido ? "var(--color-primary)" : "var(--color-surface)",
+                  color: ativo || concluido ? "#fff" : "var(--color-text-muted)",
+                  border: ativo || concluido ? "none" : "1px solid var(--color-border)",
+                }}
+              >
+                {numero}
+              </span>
+              <span
+                className="text-[12.5px] font-medium whitespace-nowrap"
+                style={{ color: ativo ? "var(--color-primary)" : "var(--color-text-muted)" }}
+              >
+                {rotulo}
+              </span>
+            </div>
+            {numero < ETAPAS_DESKTOP.length && (
+              <span className="w-16 h-px mb-5 mx-3" style={{ background: "var(--color-border)" }} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
