@@ -5,25 +5,27 @@ import { reservaBrand } from "@/lib/reservaBrand";
 import {
   DIAS,
   HORARIO_FIXO,
+  ROTULO_STATUS_CHEGADA,
+  TOLERANCIA_MINUTOS,
   cancelarReserva,
   dataDoDia,
+  desfazerCheckin,
+  fazerCheckin,
   formatarDataCurta,
   horarios,
   listarClientes,
   mesas,
+  minutosDoHorario,
+  statusChegada,
   useReservas,
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
 import PlantaVisual, { LegendaPlanta } from "./PlantaVisual";
+import DetalheMesaConteudo from "./DetalheMesa";
 import StatCard from "./StatCard";
 import StatusBadge from "./StatusBadge";
 import NewReservationModal from "./NewReservationModal";
-
-function minutosDoHorario(h: string): number {
-  const [hh, mm] = h.split(":").map(Number);
-  return hh * 60 + mm;
-}
 
 const ICONE_CALENDARIO = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
@@ -34,14 +36,11 @@ const ICONE_GRUPO = (
 const ICONE_MESA = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
 );
-const ICONE_RELOGIO = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-);
-const ICONE_TELEFONE = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M4 5c0 8.284 6.716 15 15 15l1-4-5-2-2 2c-2.5-1-4.5-3-5.5-5.5l2-2-2-5-4 1Z" /></svg>
-);
 const ICONE_ORDENAR = (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m7 9 5-5 5 5M7 15l5 5 5-5" /></svg>
+);
+const ICONE_NOTA = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /><path d="M9.5 13h5M9.5 16.5h5" /></svg>
 );
 
 export default function ReservasAdminPage() {
@@ -261,7 +260,7 @@ export default function ReservasAdminPage() {
             ) : (
               <div className="flex flex-col">
                 {reservasOrdenadas.map((r, i) => (
-                  <LinhaReserva key={r.id} reserva={r} comBorda={i > 0} focada={r.id === reservaFocoId} onFocar={() => focarReserva(r)} />
+                  <LinhaReserva key={r.id} reserva={r} comBorda={i > 0} focada={r.id === reservaFocoId} minutosAgora={minutosAgora} onFocar={() => focarReserva(r)} />
                 ))}
               </div>
             )}
@@ -297,8 +296,11 @@ export default function ReservasAdminPage() {
                     mesaFocoObj={mesaFocoObj}
                     reservaFoco={reservaFoco}
                     horarioPlanta={horarioPlanta}
+                    minutosAgora={minutosAgora}
                     onCancelar={() => cancelarReserva(reservaFoco!.id)}
                     onNovaReserva={() => setModalAberto(true)}
+                    onCheckin={() => fazerCheckin(reservaFoco!.id)}
+                    onDesfazerCheckin={() => desfazerCheckin(reservaFoco!.id)}
                   />
                 </div>
               )}
@@ -319,8 +321,11 @@ export default function ReservasAdminPage() {
                 mesaFocoObj={mesaFocoObj}
                 reservaFoco={reservaFoco}
                 horarioPlanta={horarioPlanta}
+                minutosAgora={minutosAgora}
                 onCancelar={() => cancelarReserva(reservaFoco!.id)}
                 onNovaReserva={() => setModalAberto(true)}
+                onCheckin={() => fazerCheckin(reservaFoco!.id)}
+                onDesfazerCheckin={() => desfazerCheckin(reservaFoco!.id)}
               />
             </div>
           </div>
@@ -360,11 +365,13 @@ function LinhaReserva({
   reserva,
   comBorda,
   focada,
+  minutosAgora,
   onFocar,
 }: {
   reserva: Reserva;
   comBorda: boolean;
   focada: boolean;
+  minutosAgora: number | null;
   onFocar: () => void;
 }) {
   return (
@@ -380,77 +387,21 @@ function LinhaReserva({
       <span className="text-[15px] font-semibold tabular-nums w-12 shrink-0">{reserva.horario}</span>
       <div className="flex-1 min-w-[140px]">
         <span className="text-[16px] font-semibold block truncate">{reserva.nome}</span>
-        <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{reserva.telefone}</span>
+        <span className="text-xs block" style={{ color: "var(--color-text-muted)" }}>{reserva.telefone}</span>
+        {reserva.observacao && (
+          <span className="text-xs flex items-center gap-1 mt-0.5 italic" style={{ color: "var(--color-primary)" }}>
+            {ICONE_NOTA}
+            <span className="truncate">{reserva.observacao}</span>
+          </span>
+        )}
       </div>
       <span className="text-[14px] w-20 shrink-0" style={{ color: "var(--color-text-muted)" }}>{reserva.pessoas} pessoa{reserva.pessoas === 1 ? "" : "s"}</span>
       <span className="flex items-center gap-1.5 text-xs w-20 shrink-0" style={{ color: "var(--color-text-muted)" }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
         Mesa {reserva.mesaNumero}
       </span>
-      <span className="w-24 shrink-0"><StatusBadge cancelada={reserva.cancelada} /></span>
+      <span className="w-28 shrink-0"><StatusBadge cancelada={reserva.cancelada} chegada={statusChegada(reserva, minutosAgora)} /></span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" className="shrink-0"><path d="m9 18 6-6-6-6" /></svg>
     </button>
-  );
-}
-
-function DetalheMesaConteudo({
-  mesaFocoObj,
-  reservaFoco,
-  horarioPlanta,
-  onCancelar,
-  onNovaReserva,
-}: {
-  mesaFocoObj: Mesa;
-  reservaFoco: Reserva | undefined;
-  horarioPlanta: string;
-  onCancelar: () => void;
-  onNovaReserva: () => void;
-}) {
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <span className="text-[16px] font-bold" style={{ color: "var(--color-dark)" }}>Mesa {mesaFocoObj.numero}</span>
-        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--color-accent-soft)", color: "var(--color-accent-dark)" }}>
-          {mesaFocoObj.zona}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--color-text-muted)" }}>
-        {ICONE_MESA}
-        {mesaFocoObj.capacidade} lugares
-      </div>
-
-      {reservaFoco ? (
-        <>
-          <div style={{ borderTop: "1px solid var(--color-border)" }} />
-          <span className="text-[10.5px] font-semibold tracking-[0.12em] uppercase" style={{ color: "var(--color-text-muted)" }}>Reserva atual</span>
-          <div className="flex flex-col gap-1.5 text-[13px]" style={{ color: "var(--color-dark)" }}>
-            <span className="font-semibold">{reservaFoco.nome}</span>
-            <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_TELEFONE}{reservaFoco.telefone}</span>
-            <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_RELOGIO}{reservaFoco.horario} · {reservaFoco.pessoas} pessoa{reservaFoco.pessoas === 1 ? "" : "s"}</span>
-          </div>
-          <StatusBadge cancelada={reservaFoco.cancelada} />
-          {!reservaFoco.cancelada && (
-            <button
-              onClick={onCancelar}
-              className="text-[12.5px] font-semibold py-2.5 border"
-              style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}
-            >
-              Cancelar reserva
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="text-[13px]" style={{ color: "var(--color-text-muted)" }}>Mesa disponível às {horarioPlanta}.</p>
-          <button
-            onClick={onNovaReserva}
-            className="text-[12.5px] font-semibold py-2.5 text-white"
-            style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
-          >
-            + Nova reserva
-          </button>
-        </>
-      )}
-    </>
   );
 }

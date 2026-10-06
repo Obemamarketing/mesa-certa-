@@ -32,11 +32,11 @@ const ITENS = [
     ),
   },
   {
-    href: "/admin/relatorios",
-    label: "Relatórios",
+    href: "/admin/operacao",
+    label: "Operação",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-        <path d="M4 20V10M12 20V4M20 20v-7" />
+        <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
       </svg>
     ),
   },

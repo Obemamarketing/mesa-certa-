@@ -2,15 +2,17 @@
 
 import { mesas, statusMesa, type DiaReserva, type Mesa, type Reserva } from "@/lib/reservas";
 
+// Cor reflete o status REAL da mesa (reservada vs. ocupada/check-in feito);
+// a seleção do admin para inspecionar é indicada por um anel branco, não por
+// sobrescrever a cor — assim dá pra ver os dois ao mesmo tempo sem ambiguidade.
 const CORES: Record<string, string> = {
   livre: "var(--color-accent)",
-  selecionada: "var(--color-primary)",
-  ocupada: "var(--color-secondary)",
+  reservada: "var(--color-secondary)",
+  ocupada: "var(--color-primary)",
   pequena: "var(--color-border)",
 };
 
-function corDaMesa(status: string, selecionada: boolean) {
-  if (selecionada) return CORES.selecionada;
+function corDaMesa(status: string) {
   return CORES[status] ?? CORES.pequena;
 }
 
@@ -86,21 +88,24 @@ export default function PlantaVisual({
         if (!pos) return null;
         const status = statusMesa(reservas, dia, horario, m);
         const selecionada = mesaSelecionada === m.numero;
-        const indisponivel = status !== "livre" && !selecionada;
-        const cor = corDaMesa(status, selecionada);
+        const cor = corDaMesa(status);
         const raio = 25;
+        const anel = selecionada ? { stroke: "var(--color-dark)", strokeWidth: 3 } : { stroke: "none", strokeWidth: 0 };
         return (
           <g
             key={m.numero}
             onClick={() => onSelecionar(m.numero)}
-            style={{ cursor: indisponivel ? "default" : "pointer" }}
+            style={{ cursor: "pointer" }}
           >
+            {selecionada && (m.formato === "redonda"
+              ? <circle cx={pos.x} cy={pos.y} r={raio + 5} fill="none" stroke="var(--color-dark)" strokeWidth="2" opacity="0.35" />
+              : <rect x={pos.x - raio - 5} y={pos.y - raio - 5} width={(raio + 5) * 2} height={(raio + 5) * 2} rx="14" fill="none" stroke="var(--color-dark)" strokeWidth="2" opacity="0.35" />)}
             {m.formato === "redonda" ? (
-              <circle cx={pos.x} cy={pos.y} r={raio} fill={cor} opacity={indisponivel ? 0.55 : 1} stroke={selecionada ? "#fff" : "none"} strokeWidth="2.5" />
+              <circle cx={pos.x} cy={pos.y} r={raio} fill={cor} {...anel} />
             ) : (
-              <rect x={pos.x - raio} y={pos.y - raio} width={raio * 2} height={raio * 2} rx="10" fill={cor} opacity={indisponivel ? 0.55 : 1} stroke={selecionada ? "#fff" : "none"} strokeWidth="2.5" />
+              <rect x={pos.x - raio} y={pos.y - raio} width={raio * 2} height={raio * 2} rx="10" fill={cor} {...anel} />
             )}
-            <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="middle" fontSize="15" fontWeight="700" fill={status === "livre" && !selecionada ? "#fff" : "#fff"}>
+            <text x={pos.x} y={pos.y + 1} textAnchor="middle" dominantBaseline="middle" fontSize="15" fontWeight="700" fill="#fff">
               {m.numero}
             </text>
             <text x={pos.x} y={pos.y + raio + 15} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--color-text-muted)">

@@ -5,7 +5,8 @@ import { mesas, statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas
 const CORES: Record<string, { bg: string; border: string; text: string }> = {
   livre: { bg: "var(--color-accent)", border: "var(--color-accent-dark)", text: "#fff" },
   selecionada: { bg: "var(--color-primary)", border: "var(--color-primary-dark)", text: "#fff" },
-  ocupada: { bg: "var(--color-secondary)", border: "var(--color-secondary-dark)", text: "#fff" },
+  reservada: { bg: "var(--color-secondary)", border: "var(--color-secondary-dark)", text: "#fff" },
+  ocupada: { bg: "var(--color-primary)", border: "var(--color-primary-dark)", text: "#fff" },
   pequena: { bg: "var(--color-border)", border: "var(--color-border)", text: "var(--color-text-muted)" },
 };
 

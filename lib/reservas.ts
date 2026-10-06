@@ -70,6 +70,7 @@ export type Reserva = {
   observacao?: string;
   criadaEm: number;
   cancelada?: boolean;
+  checkinEm?: number;
 };
 
 type ReservaRow = {
@@ -84,6 +85,7 @@ type ReservaRow = {
   observacao: string | null;
   criada_em: string;
   cancelada: boolean;
+  checkin_em: string | null;
 };
 
 function daRow(row: ReservaRow): Reserva {
@@ -99,6 +101,7 @@ function daRow(row: ReservaRow): Reserva {
     observacao: row.observacao ?? undefined,
     criadaEm: new Date(row.criada_em).getTime(),
     cancelada: row.cancelada,
+    checkinEm: row.checkin_em ? new Date(row.checkin_em).getTime() : undefined,
   };
 }
 
@@ -159,6 +162,18 @@ export async function cancelarReserva(id: string): Promise<void> {
   if (error) console.error("Erro ao cancelar reserva:", error.message);
 }
 
+// Check-in: registra o horário de chegada do cliente. A mesa passa a
+// aparecer como "ocupada" (em vez de só "reservada") na planta.
+export async function fazerCheckin(id: string): Promise<void> {
+  const { error } = await supabase.from("reservas").update({ checkin_em: new Date().toISOString() }).eq("id", id);
+  if (error) console.error("Erro ao registrar check-in:", error.message);
+}
+
+export async function desfazerCheckin(id: string): Promise<void> {
+  const { error } = await supabase.from("reservas").update({ checkin_em: null }).eq("id", id);
+  if (error) console.error("Erro ao desfazer check-in:", error.message);
+}
+
 // Código curto pra cliente guardar/digitar — 6 primeiros caracteres do id.
 export function codigoDaReserva(id: string): string {
   return id.replace(/-/g, "").slice(0, 6).toUpperCase();
@@ -182,16 +197,54 @@ export async function buscarReservaDoCliente(termo: string): Promise<Reserva[]> 
   return encontradas.sort((a, b) => b.criadaEm - a.criadaEm);
 }
 
-export type StatusMesa = "livre" | "ocupada" | "pequena";
+export type StatusMesa = "livre" | "reservada" | "ocupada" | "pequena";
 
 // Status calculado em cima de uma lista de reservas já carregada (via
 // useReservas) — não bate no banco a cada mesa desenhada na planta.
+// "reservada" = tem reserva ativa mas o cliente ainda não fez check-in.
+// "ocupada" = check-in feito, cliente já está na mesa.
 export function statusMesa(reservas: Reserva[], dia: DiaReserva, horario: string, mesa: Mesa, pessoasMin?: number): StatusMesa {
-  const ocupada = reservas.some((r) => !r.cancelada && r.dia === dia && r.horario === horario && r.mesaNumero === mesa.numero);
-  if (ocupada) return "ocupada";
+  const reserva = reservas.find((r) => !r.cancelada && r.dia === dia && r.horario === horario && r.mesaNumero === mesa.numero);
+  if (reserva) return reserva.checkinEm ? "ocupada" : "reservada";
   if (pessoasMin && mesa.capacidade < pessoasMin) return "pequena";
   return "livre";
 }
+
+export function reservaDaMesa(reservas: Reserva[], dia: DiaReserva, horario: string, mesaNumero: string): Reserva | undefined {
+  return reservas.find((r) => !r.cancelada && r.dia === dia && r.horario === horario && r.mesaNumero === mesaNumero);
+}
+
+// Tolerância de 20 minutos após o horário fixo (19h30) — ver README do
+// módulo: o sistema NUNCA cancela ou libera a mesa sozinho, só sinaliza
+// visualmente pro administrador decidir.
+export const TOLERANCIA_MINUTOS = 20;
+
+export function minutosDoHorario(horario: string): number {
+  const [hh, mm] = horario.split(":").map(Number);
+  return hh * 60 + mm;
+}
+
+export type StatusChegada = "aguardando" | "tolerancia" | "atrasado" | "chegou" | "cancelada";
+
+// minutosAgora: minutos desde 00:00 do horário real atual (null até o
+// relógio montar no cliente, pra evitar mismatch de hidratação).
+export function statusChegada(reserva: Reserva, minutosAgora: number | null): StatusChegada {
+  if (reserva.cancelada) return "cancelada";
+  if (reserva.checkinEm) return "chegou";
+  if (minutosAgora === null) return "aguardando";
+  const minutosReserva = minutosDoHorario(reserva.horario);
+  if (minutosAgora < minutosReserva) return "aguardando";
+  if (minutosAgora <= minutosReserva + TOLERANCIA_MINUTOS) return "tolerancia";
+  return "atrasado";
+}
+
+export const ROTULO_STATUS_CHEGADA: Record<StatusChegada, string> = {
+  aguardando: "Aguardando horário",
+  tolerancia: "Reserva dentro da tolerância",
+  atrasado: "Cliente não chegou",
+  chegou: "Cliente chegou",
+  cancelada: "Cancelada",
+};
 
 export function mesasDisponiveisPara(reservas: Reserva[], dia: DiaReserva, horario: string, pessoas: number): Mesa[] {
   return mesas.filter((m) => statusMesa(reservas, dia, horario, m, pessoas) === "livre");
@@ -212,6 +265,12 @@ export function listarClientes(reservas: Reserva[]): Cliente[] {
     }
   }
   return Array.from(mapa.values()).sort((a, b) => b.totalReservas - a.totalReservas);
+}
+
+// Histórico básico de um cliente (não é CRM — só a lista de reservas dele,
+// mais recentes primeiro, pra consulta rápida no admin).
+export function historicoDoCliente(reservas: Reserva[], telefone: string): Reserva[] {
+  return reservas.filter((r) => r.telefone === telefone).sort((a, b) => b.criadaEm - a.criadaEm);
 }
 
 // Carrega as reservas e escuta o realtime do Supabase — qualquer reserva ou

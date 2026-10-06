@@ -8,6 +8,7 @@ import { baixarIcsDaReserva } from "@/lib/ics";
 import {
   DIAS,
   HORARIO_FIXO,
+  TOLERANCIA_MINUTOS,
   criarReserva,
   dataDoDia,
   formatarDataCurta,
@@ -18,6 +19,7 @@ import {
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
+import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
 import StepIndicator from "./StepIndicator";
 
 type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
@@ -107,7 +109,7 @@ export default function ReservasPage() {
 
   if (etapa === "horario") {
     const diaLabelCompleto = `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoDia(dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`;
-    const textoTolerancia = "As reservas são realizadas exclusivamente às 19h30. Pedimos que chegue com até 10 minutos de tolerância para garantir sua reserva.";
+    const textoTolerancia = `As reservas são realizadas exclusivamente às 19h30. Pedimos que chegue com até ${TOLERANCIA_MINUTOS} minutos de tolerância para garantir sua reserva.`;
 
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>

@@ -27,6 +27,7 @@ export default function NewReservationModal({
   const [mesaNumero, setMesaNumero] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [observacao, setObservacao] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -41,6 +42,7 @@ export default function NewReservationModal({
       pessoas,
       nome: nome.trim(),
       telefone: telefone.trim(),
+      observacao: observacao.trim() || undefined,
     });
     setEnviando(false);
     if (!reserva) {
@@ -109,6 +111,8 @@ export default function NewReservationModal({
           <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do cliente" className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
           <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="Telefone" inputMode="tel" className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
         </div>
+
+        <input value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional) — ex: aniversário" className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
 
         {erro && <p className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
 
