@@ -2,33 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, mesas, minutosDoHorario, type Mesa } from "./regras";
+
+export { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, horaLimiteDaTolerancia, mesas, minutosDoHorario } from "./regras";
+export type { FormatoMesa, Mesa, ZonaMesa } from "./regras";
 
 // "Hoje" fixo pro protótipo — terça-feira, 30 de setembro de 2026.
 export const dataHoje = new Date(2026, 8, 30);
-
-export type FormatoMesa = "redonda" | "quadrada";
-
-export type ZonaMesa = "Palco" | "Salão principal" | "Salão anexo";
-
-export type Mesa = { numero: string; capacidade: number; formato: FormatoMesa; zona: ZonaMesa };
-
-export const mesas: Mesa[] = [
-  { numero: "01", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "02", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "03", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "04", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "05", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "06", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "07", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "08", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "09", capacidade: 6, formato: "redonda", zona: "Salão principal" },
-  { numero: "10", capacidade: 6, formato: "redonda", zona: "Salão principal" },
-  { numero: "11", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "12", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
-  { numero: "13", capacidade: 2, formato: "quadrada", zona: "Salão anexo" },
-  { numero: "14", capacidade: 2, formato: "quadrada", zona: "Salão anexo" },
-  { numero: "15", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
-];
 
 export type DiaReserva = "sexta" | "sabado" | "domingo";
 
@@ -38,8 +18,6 @@ export const DIAS: { chave: DiaReserva; label: string; diaSemana: number }[] = [
   { chave: "domingo", label: "Domingo", diaSemana: 0 },
 ];
 
-// O ZéPelin só recebe reservas às 19h30 — não há seletor de horário na interface.
-export const HORARIO_FIXO = "19:30";
 export const horarios = [HORARIO_FIXO];
 
 function proximaData(diaSemanaAlvo: number): Date {
@@ -174,11 +152,6 @@ export async function desfazerCheckin(id: string): Promise<void> {
   if (error) console.error("Erro ao desfazer check-in:", error.message);
 }
 
-// Código curto pra cliente guardar/digitar — 6 primeiros caracteres do id.
-export function codigoDaReserva(id: string): string {
-  return id.replace(/-/g, "").slice(0, 6).toUpperCase();
-}
-
 // Consulta pública: por telefone (mais comum) ou pelo código curto. Busca
 // tudo e filtra no cliente — base pequena de protótipo, evita depender de
 // como o telefone foi formatado na hora de reservar.
@@ -214,16 +187,8 @@ export function reservaDaMesa(reservas: Reserva[], dia: DiaReserva, horario: str
   return reservas.find((r) => !r.cancelada && r.dia === dia && r.horario === horario && r.mesaNumero === mesaNumero);
 }
 
-// Tolerância de 20 minutos após o horário fixo (19h30) — ver README do
-// módulo: o sistema NUNCA cancela ou libera a mesa sozinho, só sinaliza
-// visualmente pro administrador decidir.
-export const TOLERANCIA_MINUTOS = 20;
-
-export function minutosDoHorario(horario: string): number {
-  const [hh, mm] = horario.split(":").map(Number);
-  return hh * 60 + mm;
-}
-
+// Tolerância (TOLERANCIA_MINUTOS, em regras.ts): o sistema NUNCA cancela ou
+// libera a mesa sozinho, só sinaliza visualmente pro administrador decidir.
 export type StatusChegada = "aguardando" | "tolerancia" | "atrasado" | "chegou" | "cancelada";
 
 // minutosAgora: minutos desde 00:00 do horário real atual (null até o

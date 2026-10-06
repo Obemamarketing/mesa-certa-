@@ -1,4 +1,5 @@
 import { reservaBrand } from "@/lib/reservaBrand";
+import LembretesWhatsapp from "./LembretesWhatsapp";
 
 export default function ConfiguracoesPage() {
   return (
@@ -15,6 +16,8 @@ export default function ConfiguracoesPage() {
           <div className="flex justify-between"><span style={{ color: "var(--color-text-muted)" }}>Funcionamento</span><span className="font-medium">{reservaBrand.diasFuncionamento}</span></div>
         </div>
       </div>
+
+      <LembretesWhatsapp />
 
       <div className="border p-5" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
         <p className="font-display text-lg mb-3">Acesso</p>
