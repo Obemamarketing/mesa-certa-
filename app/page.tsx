@@ -13,7 +13,6 @@ import {
   dataDoDia,
   formatarDataCurta,
   mesas,
-  statusMesa,
   useReservas,
   type DiaReserva,
   type Mesa,
@@ -22,6 +21,7 @@ import {
 import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
 import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
+import EscolhaMesaMobile from "./EscolhaMesaMobile";
 
 type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
 
@@ -46,7 +46,6 @@ export default function ReservasPage() {
   const [pessoas, setPessoas] = useState(2);
   const [pessoasCustom, setPessoasCustom] = useState(false);
   const horario = HORARIO_FIXO;
-  const [zonaAtiva, setZonaAtiva] = useState<Mesa["zona"] | "todas">("todas");
   const [mesaNumero, setMesaNumero] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -212,94 +211,19 @@ export default function ReservasPage() {
   if (etapa === "mesa") {
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
-        {/* ===== MOBILE — inalterado ===== */}
+        {/* ===== MOBILE — planta em pe + lista ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
-          <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
-            <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
-            <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
-              Consultar reserva
-            </Link>
-          </header>
-
-          <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
-            <div className="flex flex-col gap-5 pt-4 sm:pt-6">
-              <TopoEtapa onVoltar={() => setEtapa("horario")} etapaNumero={2} />
-              <div>
-                <h1 className="font-display text-2xl">Escolha sua mesa</h1>
-                <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Selecione onde você gostaria de sentar.</p>
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {[{ chave: "todas" as const, label: "Todas" }, ...ZONAS].map((z) => {
-                  const ativo = zonaAtiva === z.chave;
-                  return (
-                    <button
-                      key={z.chave}
-                      onClick={() => setZonaAtiva(z.chave)}
-                      className="px-4 py-2 text-sm font-medium border shrink-0"
-                      style={{ borderRadius: "999px", borderColor: ativo ? "var(--color-primary)" : "var(--color-border)", background: ativo ? "var(--color-primary-soft)" : "transparent", color: ativo ? "var(--color-primary)" : "var(--color-text-muted)" }}
-                    >
-                      {z.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-col gap-5">
-                {ZONAS.filter((z) => zonaAtiva === "todas" || zonaAtiva === z.chave).map((z) => (
-                  <div key={z.chave} className="flex flex-col gap-2.5">
-                    <span className="text-[11px] font-semibold tracking-wide uppercase" style={{ color: "var(--color-text-muted)" }}>{z.chave}</span>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                      {mesas.filter((m) => m.zona === z.chave).map((m) => {
-                        const status = statusMesa(reservas, dia, horario, m, pessoasParaCapacidade);
-                        const selecionada = mesaNumero === m.numero;
-                        const indisponivel = status !== "livre" && !selecionada;
-                        const bg = selecionada ? "var(--color-primary)" : status === "ocupada" ? "var(--color-secondary)" : indisponivel ? "var(--color-border)" : "var(--color-accent-soft)";
-                        const txt = selecionada || status === "ocupada" ? "#fff" : indisponivel ? "var(--color-text-muted)" : "var(--color-accent-dark)";
-                        return (
-                          <button
-                            key={m.numero}
-                            disabled={indisponivel}
-                            onClick={() => setMesaNumero(m.numero)}
-                            className={`flex flex-col items-center justify-center gap-0.5 aspect-square border-2 ${m.formato === "redonda" ? "rounded-full" : ""}`}
-                            style={{ borderRadius: m.formato === "redonda" ? "9999px" : "var(--radius-sm)", background: bg, borderColor: bg, opacity: indisponivel && status !== "ocupada" ? 0.7 : 1 }}
-                          >
-                            <span className="text-sm font-semibold" style={{ color: txt }}>{m.numero}</span>
-                            <span className="text-[10px]" style={{ color: txt, opacity: 0.85 }}>{m.capacidade}p</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-4 flex-wrap">
-                <LegendaDot cor="var(--color-accent-soft)" borda="var(--color-accent)" label="Livre" />
-                <LegendaDot cor="var(--color-primary)" borda="var(--color-primary)" label="Selecionada" />
-                <LegendaDot cor="var(--color-secondary)" borda="var(--color-secondary)" label="Reservada" />
-                <LegendaDot cor="var(--color-border)" borda="var(--color-border)" label="Indisponível" />
-              </div>
-
-              {mesaObj && (
-                <div className="border p-3 flex items-center gap-3" style={{ borderColor: "var(--color-primary)", background: "var(--color-primary-soft)", borderRadius: "var(--radius-sm)" }}>
-                  <div className="relative w-12 h-12 rounded-md overflow-hidden shrink-0">
-                    <Image src="/hero-zeplin.webp" alt="" fill className="object-cover" />
-                  </div>
-                  <span className="text-sm font-semibold">Mesa {mesaObj.numero} · {rotuloZona(mesaObj.zona)} · {mesaObj.capacidade} lugares</span>
-                </div>
-              )}
-
-              <button
-                onClick={() => setEtapa("dados")}
-                disabled={!mesaNumero}
-                className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
-                style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
-              >
-                Continuar
-              </button>
-            </div>
-          </div>
+          <EscolhaMesaMobile
+            reservas={reservas}
+            dia={dia}
+            horario={horario}
+            pessoas={pessoas}
+            pessoasMin={pessoasParaCapacidade}
+            mesaNumero={mesaNumero}
+            onSelecionar={setMesaNumero}
+            onVoltar={() => setEtapa("horario")}
+            onContinuar={() => setEtapa("dados")}
+          />
         </div>
 
         {/* ===== DESKTOP — planta do salao + painel de selecao ===== */}
@@ -633,15 +557,6 @@ function StepIndicatorDesktop({ atual }: { atual: number }) {
         );
       })}
     </div>
-  );
-}
-
-function LegendaDot({ cor, borda, label }: { cor: string; borda: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--color-text-muted)" }}>
-      <span className="w-2.5 h-2.5 rounded-full border" style={{ background: cor, borderColor: borda }} />
-      {label}
-    </span>
   );
 }
 

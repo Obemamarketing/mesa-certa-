@@ -16,7 +16,11 @@ export const CORES_ESTADO: Record<EstadoMesa, { tampo: string; aro: string; cade
   selecionada: { tampo: "#D99A18", aro: "#96690F", cadeira: "#8A6240", texto: "#2A1712" },
 };
 
-export function raioDaMesa(capacidade: number): number {
+// "compacta" é a versão usada na planta de celular: a mesa ocupa quase todo o
+// espaço e as cadeiras ficam coladas, pra sobrar área pro número ser legível
+// numa tela estreita.
+export function raioDaMesa(capacidade: number, compacta = false): number {
+  if (compacta) return capacidade <= 2 ? 21 : capacidade <= 4 ? 25 : 29;
   if (capacidade <= 2) return 24;
   if (capacidade <= 4) return 30;
   return 37;
@@ -25,8 +29,8 @@ export function raioDaMesa(capacidade: number): number {
 type Assento = { dx: number; dy: number; giro: number };
 
 // Cadeiras distribuídas em volta do tampo, viradas para a mesa.
-function assentos(mesa: Mesa, raio: number): Assento[] {
-  const dist = raio + 11;
+function assentos(mesa: Mesa, raio: number, compacta: boolean): Assento[] {
+  const dist = raio + (compacta ? 6 : 11);
   if (mesa.formato === "redonda") {
     return Array.from({ length: mesa.capacidade }, (_, i) => {
       const ang = (Math.PI * 2 * i) / mesa.capacidade - Math.PI / 2;
@@ -49,32 +53,36 @@ export function MesaDesenhada({
   cy,
   estado,
   mostrarNumero = true,
+  compacta = false,
 }: {
   mesa: Mesa;
   cx: number;
   cy: number;
   estado: EstadoMesa;
   mostrarNumero?: boolean;
+  compacta?: boolean;
 }) {
-  const raio = raioDaMesa(mesa.capacidade);
+  const raio = raioDaMesa(mesa.capacidade, compacta);
   const cor = CORES_ESTADO[estado];
   const destacada = estado === "selecionada";
+  const cadeiraL = compacta ? 11 : 16;
+  const cadeiraA = compacta ? 8 : 12;
 
   return (
     <g>
       {/* halo da mesa escolhida, pra achar de imediato no desenho */}
       {destacada && (
-        <circle cx={cx} cy={cy} r={raio + 26} fill="#D99A18" opacity="0.16" />
+        <circle cx={cx} cy={cy} r={raio + (compacta ? 15 : 26)} fill="#D99A18" opacity="0.16" />
       )}
 
-      {assentos(mesa, raio).map((a, i) => (
+      {assentos(mesa, raio, compacta).map((a, i) => (
         <rect
           key={i}
-          x={cx + a.dx - 8}
-          y={cy + a.dy - 6}
-          width="16"
-          height="12"
-          rx="3.5"
+          x={cx + a.dx - cadeiraL / 2}
+          y={cy + a.dy - cadeiraA / 2}
+          width={cadeiraL}
+          height={cadeiraA}
+          rx={compacta ? 2.5 : 3.5}
           fill={cor.cadeira}
           opacity={estado === "pequena" ? 0.75 : 1}
           transform={`rotate(${a.giro} ${cx + a.dx} ${cy + a.dy})`}
@@ -94,7 +102,7 @@ export function MesaDesenhada({
       )}
 
       {destacada && (
-        <circle cx={cx} cy={cy} r={raio + 7} fill="none" stroke="#2A1712" strokeWidth="2.5" />
+        <circle cx={cx} cy={cy} r={raio + (compacta ? 5 : 7)} fill="none" stroke="#2A1712" strokeWidth={compacta ? 2 : 2.5} />
       )}
 
       {mostrarNumero && (
@@ -103,7 +111,7 @@ export function MesaDesenhada({
           y={cy}
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize={raio >= 37 ? 21 : raio >= 30 ? 18 : 15}
+          fontSize={compacta ? (mesa.capacidade >= 6 ? 19 : mesa.capacidade >= 4 ? 17 : 15) : raio >= 37 ? 21 : raio >= 30 ? 18 : 15}
           fontWeight="700"
           fill={cor.texto}
           style={{ fontFamily: "var(--font-body)" }}
@@ -116,12 +124,22 @@ export function MesaDesenhada({
 }
 
 // Miniatura para os cards do painel: a mesma mesa, sem número, enquadrada.
-export function MesaMiniatura({ mesa, estado, tamanho = 56 }: { mesa: Mesa; estado: EstadoMesa; tamanho?: number }) {
-  const raio = raioDaMesa(mesa.capacidade);
-  const caixa = (raio + 24) * 2;
+export function MesaMiniatura({
+  mesa,
+  estado,
+  tamanho = 56,
+  compacta = false,
+}: {
+  mesa: Mesa;
+  estado: EstadoMesa;
+  tamanho?: number;
+  compacta?: boolean;
+}) {
+  const raio = raioDaMesa(mesa.capacidade, compacta);
+  const caixa = (raio + (compacta ? 13 : 24)) * 2;
   return (
     <svg width={tamanho} height={tamanho} viewBox={`0 0 ${caixa} ${caixa}`} aria-hidden="true" className="shrink-0">
-      <MesaDesenhada mesa={mesa} cx={caixa / 2} cy={caixa / 2} estado={estado} mostrarNumero={false} />
+      <MesaDesenhada mesa={mesa} cx={caixa / 2} cy={caixa / 2} estado={estado} mostrarNumero={false} compacta={compacta} />
     </svg>
   );
 }

@@ -187,7 +187,8 @@ export default function PlantaRestaurante({
   );
 }
 
-export function LegendaPlanta() {
+// compacta: no celular os quatro itens têm que caber numa linha só.
+export function LegendaPlanta({ compacta = false }: { compacta?: boolean }) {
   const itens = [
     { cor: "#60733A", label: "Disponível" },
     { cor: "#7F1717", label: "Ocupada" },
@@ -195,10 +196,17 @@ export function LegendaPlanta() {
     { cor: "#D99A18", label: "Selecionada" },
   ];
   return (
-    <div className="flex items-center gap-7 flex-wrap">
+    <div className={`flex items-center ${compacta ? "justify-between" : "gap-7 flex-wrap"}`}>
       {itens.map((i) => (
-        <span key={i.label} className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ background: i.cor }} />
+        <span
+          key={i.label}
+          className={`flex items-center shrink-0 ${compacta ? "gap-1.5 text-[11px]" : "gap-2 text-[12.5px]"}`}
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          <span
+            className={`rounded-full shrink-0 ${compacta ? "w-2.5 h-2.5" : "w-3 h-3"}`}
+            style={{ background: i.cor }}
+          />
           {i.label}
         </span>
       ))}
