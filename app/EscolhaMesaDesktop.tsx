@@ -37,22 +37,6 @@ const AREAS: { chave: Mesa["zona"] | "todas"; label: string }[] = [
 
 const ETAPAS = ["Escolha da mesa", "Seus dados", "Confirmação"];
 
-function descricaoDaMesa(mesa: Mesa): string {
-  const tamanho =
-    mesa.capacidade >= 6
-      ? "Mesa ampla, ideal para grupos."
-      : mesa.capacidade <= 2
-      ? "Mesa para dois, mais reservada."
-      : `Mesa confortável para até ${mesa.capacidade} pessoas.`;
-  const lugar: Record<Mesa["zona"], string> = {
-    Palco: "Fica de frente para o palco, pertinho da música.",
-    "Salão principal": "Fica no centro do salão principal.",
-    "Salão anexo": "Fica no salão anexo, num canto mais tranquilo.",
-    "Área externa": "Fica na área externa, sob os guarda-sóis.",
-  };
-  return `${tamanho} ${lugar[mesa.zona]}`;
-}
-
 export default function EscolhaMesaDesktop({
   reservas,
   dia,
@@ -171,17 +155,16 @@ export default function EscolhaMesaDesktop({
 
           {/* ========== DIREITA — PAINEL ========== */}
           <aside
-            className="flex flex-col sticky top-6"
+            className="flex flex-col"
             style={{
               background: "var(--color-surface)",
               border: "1px solid var(--color-border)",
               borderRadius: "18px",
-              // o painel inteiro cabe na tela: só a lista de mesas rola,
-              // o resumo e o botão ficam sempre à vista
-              maxHeight: "calc(100vh - 104px)",
+              // sem altura travada: a lista mostra todas as mesas e a página
+              // rola. O resumo e o botão ficam colados no rodapé (abaixo).
             }}
           >
-            <div className="px-7 pt-6 pb-4 shrink-0">
+            <div className="px-7 pt-6 pb-4">
               <h1 className="font-display text-[38px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>
                 Escolha sua mesa
               </h1>
@@ -226,7 +209,7 @@ export default function EscolhaMesaDesktop({
             </div>
 
             {/* lista de mesas — única parte que rola */}
-            <div className="px-7 pb-2 flex-1 min-h-0 overflow-y-auto">
+            <div className="px-7 pb-5">
               <p className="text-[11px] font-bold tracking-[0.16em] uppercase mb-3" style={{ color: "var(--color-text-muted)" }}>
                 {rotuloLista}
               </p>
@@ -296,46 +279,46 @@ export default function EscolhaMesaDesktop({
               )}
             </div>
 
-            {/* mesas selecionadas — ficam sempre visíveis, junto do botão */}
-            <div className="px-7 pt-5 shrink-0" style={{ borderTop: "1px solid var(--color-border)" }}>
-              <div
-                className="p-4"
-                style={{
-                  borderRadius: "14px",
-                  background: escolhidas.length ? "var(--color-bg)" : "transparent",
-                  border: `1px ${escolhidas.length ? "solid" : "dashed"} var(--color-border)`,
-                }}
-              >
-                <p className="text-[11px] font-bold tracking-[0.16em] uppercase" style={{ color: "var(--color-text-muted)" }}>
-                  {escolhidas.length > 1 ? "Mesas selecionadas" : "Mesa selecionada"}
-                </p>
-
-                {mesaObj ? (
-                  <div className="flex items-center gap-4 mt-2.5">
-                    <MesaMiniatura mesa={mesaObj} estado="selecionada" tamanho={70} />
-                    <div className="min-w-0">
-                      <p className="font-display text-[30px] leading-none" style={{ color: "var(--color-dark)" }}>
-                        Mesa {mesaObj.numero}
-                      </p>
-                      <p className="text-[13.5px] mt-1.5" style={{ color: "var(--color-dark)" }}>
+            {/* rodapé do painel: fica colado embaixo da tela enquanto a lista rola */}
+            <div
+              className="sticky bottom-0 z-10 px-7 pt-4 pb-5"
+              style={{
+                background: "var(--color-surface)",
+                borderTop: "1px solid var(--color-border)",
+                borderRadius: "0 0 18px 18px",
+                boxShadow: "0 -10px 18px -12px rgba(42, 23, 18, 0.18)",
+              }}
+            >
+              {mesaObj ? (
+                <div className="flex items-center gap-3.5">
+                  <MesaMiniatura mesa={mesaObj} estado="selecionada" tamanho={46} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10.5px] font-bold tracking-[0.16em] uppercase" style={{ color: "var(--color-text-muted)" }}>
+                      Mesa selecionada
+                    </p>
+                    <p className="text-[15px] leading-tight mt-0.5" style={{ color: "var(--color-dark)" }}>
+                      <strong className="font-display text-[22px] mr-2">Mesa {mesaObj.numero}</strong>
+                      <span style={{ color: "var(--color-text-muted)" }}>
                         {mesaObj.capacidade} lugares · {mesaObj.zona}
-                      </p>
-                      <p className="text-[12.5px] mt-1 leading-snug" style={{ color: "var(--color-text-muted)" }}>
-                        {descricaoDaMesa(mesaObj)}
-                      </p>
-                    </div>
+                      </span>
+                    </p>
                   </div>
-                ) : escolhidas.length > 1 ? (
-                  <div className="flex flex-wrap gap-2 mt-2.5">
+                </div>
+              ) : escolhidas.length > 1 ? (
+                <div>
+                  <p className="text-[10.5px] font-bold tracking-[0.16em] uppercase" style={{ color: "var(--color-text-muted)" }}>
+                    Mesas selecionadas
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-1.5">
                     {escolhidas.map((m) => {
                       const parte = situacao.partes.find((p) => p.numero === m.numero);
                       return (
                         <span
                           key={m.numero}
-                          className="inline-flex items-baseline gap-2 px-3 py-1.5"
-                          style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "10px" }}
+                          className="inline-flex items-baseline gap-2 px-3 py-1"
+                          style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "10px" }}
                         >
-                          <strong className="font-display text-[20px] leading-none" style={{ color: "var(--color-dark)" }}>{m.numero}</strong>
+                          <strong className="font-display text-[19px] leading-none" style={{ color: "var(--color-dark)" }}>{m.numero}</strong>
                           <span className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>
                             {parte ? `${parte.pessoas} pessoa${parte.pessoas === 1 ? "" : "s"}` : `${m.capacidade} lugares`}
                           </span>
@@ -343,35 +326,32 @@ export default function EscolhaMesaDesktop({
                       );
                     })}
                   </div>
-                ) : (
-                  <p className="text-[13.5px] mt-2 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-                    Escolha uma mesa acima. Ela aparece destacada na planta ao lado.
-                  </p>
-                )}
+                </div>
+              ) : (
+                <p className="text-[13.5px] leading-snug" style={{ color: "var(--color-text-muted)" }}>
+                  Escolha uma mesa na lista. Ela aparece destacada na planta ao lado.
+                </p>
+              )}
 
-                {situacao.aviso && (
-                  <p
-                    role="status"
-                    className="text-[13px] font-medium mt-3 px-3 py-2 leading-snug"
-                    style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "8px" }}
-                  >
-                    {situacao.aviso}
-                  </p>
-                )}
-                {situacao.cobre && escolhidas.length > 1 && (
-                  <p className="text-[12.5px] mt-3 leading-snug" style={{ color: "var(--color-accent-dark)" }}>
-                    Tudo certo: as mesas acomodam o grupo de {pessoas}.
-                  </p>
-                )}
-              </div>
-            </div>
+              {situacao.aviso && (
+                <p
+                  role="status"
+                  className="text-[13px] font-medium mt-3 px-3 py-2 leading-snug"
+                  style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "8px" }}
+                >
+                  {situacao.aviso}
+                </p>
+              )}
+              {situacao.cobre && escolhidas.length > 1 && (
+                <p className="text-[12.5px] mt-2 leading-snug" style={{ color: "var(--color-accent-dark)" }}>
+                  Tudo certo: as mesas acomodam o grupo de {pessoas}.
+                </p>
+              )}
 
-            {/* continuar */}
-            <div className="px-7 py-5 shrink-0">
               <button
                 onClick={onContinuar}
                 disabled={!situacao.cobre}
-                className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full mt-3.5 py-3.5 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "12px" }}
               >
                 {escolhidas.length > 0 && !situacao.cobre ? "Escolha mais uma mesa" : "Continuar"}
