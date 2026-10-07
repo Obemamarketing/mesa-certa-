@@ -8,12 +8,15 @@ export type EstadoMesa = StatusMesa | "selecionada";
 
 // Tampo colorido pelo estado; cadeiras sempre em madeira, pra planta inteira
 // ficar com a mesma base terrosa.
+// Verde = livre · amarelo = reservada (ainda não chegou) · vinho = ocupada
+// (check-in feito) · cinza = indisponível. A tela do cliente junta reservada e
+// ocupada numa cor só, porque pra quem reserva as duas significam o mesmo.
 export const CORES_ESTADO: Record<EstadoMesa, { tampo: string; aro: string; cadeira: string; texto: string }> = {
   livre: { tampo: "#60733A", aro: "#465428", cadeira: "#9A6F49", texto: "#FCFAF5" },
-  reservada: { tampo: "#7F1717", aro: "#5C1010", cadeira: "#8A6240", texto: "#FCFAF5" },
+  reservada: { tampo: "#D99A18", aro: "#96690F", cadeira: "#8A6240", texto: "#2A1712" },
   ocupada: { tampo: "#7F1717", aro: "#5C1010", cadeira: "#8A6240", texto: "#FCFAF5" },
   pequena: { tampo: "#CFC6B6", aro: "#B8AE9B", cadeira: "#C2B49F", texto: "#6E675C" },
-  selecionada: { tampo: "#D99A18", aro: "#96690F", cadeira: "#8A6240", texto: "#2A1712" },
+  selecionada: { tampo: "#2A1712", aro: "#000000", cadeira: "#8A6240", texto: "#F7F2E8" },
 };
 
 // "compacta" é a versão usada na planta de celular: a mesa ocupa quase todo o
@@ -72,7 +75,7 @@ export function MesaDesenhada({
     <g>
       {/* halo da mesa escolhida, pra achar de imediato no desenho */}
       {destacada && (
-        <circle cx={cx} cy={cy} r={raio + (compacta ? 15 : 26)} fill="#D99A18" opacity="0.16" />
+        <circle cx={cx} cy={cy} r={raio + (compacta ? 15 : 26)} fill="#2A1712" opacity="0.14" />
       )}
 
       {assentos(mesa, raio, compacta).map((a, i) => (

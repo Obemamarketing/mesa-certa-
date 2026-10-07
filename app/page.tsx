@@ -12,7 +12,6 @@ import {
   criarReserva,
   dataDoDia,
   formatarDataCurta,
-  mesas,
   useReservas,
   type DiaReserva,
   type Mesa,
@@ -22,25 +21,24 @@ import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
 import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
 import EscolhaMesaMobile from "./EscolhaMesaMobile";
+import { useMesasConfig } from "@/lib/mesas";
 
 type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
 
 const ZONAS = [
-  { chave: "Palco" as const, label: "Palco" },
   { chave: "Salão principal" as const, label: "Salão principal" },
   { chave: "Salão anexo" as const, label: "Salão anexo" },
+  { chave: "Palco" as const, label: "Palco" },
+  { chave: "Área externa" as const, label: "Área externa" },
 ];
 
 function rotuloZona(zona: Mesa["zona"]): string {
   return ZONAS.find((z) => z.chave === zona)?.label ?? zona;
 }
 
-// Nenhuma mesa individual passa de 6 lugares — grupos maiores não são
-// filtrados por capacidade de mesa (ficam a cargo da equipe combinar mesas).
-const CAPACIDADE_MAXIMA = Math.max(...mesas.map((m) => m.capacidade));
-
 export default function ReservasPage() {
   const { reservas } = useReservas();
+  const { mesas } = useMesasConfig();
   const [etapa, setEtapa] = useState<Etapa>("inicio");
   const [dia, setDia] = useState<DiaReserva>("sexta");
   const [pessoas, setPessoas] = useState(2);
@@ -56,7 +54,10 @@ export default function ReservasPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   const mesaObj = mesas.find((m) => m.numero === mesaNumero);
-  const pessoasParaCapacidade = pessoas > CAPACIDADE_MAXIMA ? undefined : pessoas;
+  // Grupo maior que a maior mesa não é filtrado por capacidade — fica a cargo
+  // da equipe juntar mesas.
+  const capacidadeMaxima = Math.max(...mesas.map((m) => m.capacidade));
+  const pessoasParaCapacidade = pessoas > capacidadeMaxima ? undefined : pessoas;
 
   async function confirmar() {
     if (!mesaNumero || !nome.trim() || !telefone.trim() || enviando) return;

@@ -14,14 +14,14 @@ import {
   formatarDataCurta,
   horarios,
   listarClientes,
-  mesas,
   minutosDoHorario,
   statusChegada,
   useReservas,
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
-import PlantaVisual, { LegendaPlanta } from "./PlantaVisual";
+import PlantaRestaurante, { LegendaPlanta } from "../PlantaRestaurante";
+import { useMesasConfig } from "@/lib/mesas";
 import DetalheMesaConteudo from "./DetalheMesa";
 import StatCard from "./StatCard";
 import StatusBadge from "./StatusBadge";
@@ -45,6 +45,7 @@ const ICONE_NOTA = (
 
 export default function ReservasAdminPage() {
   const { reservas, carregando } = useReservas();
+  const { mesas } = useMesasConfig();
   const [diaIndex, setDiaIndex] = useState(0);
   const [painelMobile, setPainelMobile] = useState<"planta" | "reservas" | "lista">("planta");
   const [horarioPlanta, setHorarioPlanta] = useState(HORARIO_FIXO);
@@ -232,7 +233,8 @@ export default function ReservasAdminPage() {
         </div>
 
         {/* LISTA + PLANTA */}
-        <div className="grid lg:grid-cols-[1.3fr_1fr] gap-5 items-start">
+        {/* a planta agora é a deitada, larga: precisa de mais espaço que a antiga */}
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-5 items-start">
           <section
             className={`${painelMobile === "lista" ? "flex" : "hidden lg:flex"} flex-col border`}
             style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}
@@ -277,16 +279,19 @@ export default function ReservasAdminPage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1fr_210px] gap-4 items-start">
+            {/* planta em cima, detalhe da mesa embaixo: empilhar deixa a planta usar a largura toda */}
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-3">
-                <PlantaVisual
+                <PlantaRestaurante
                   reservas={reservas}
                   dia={diaAtivo.chave}
                   horario={horarioPlanta}
                   mesaSelecionada={mesaFoco}
-                  onSelecionar={focarMesa}
+                  mesas={mesas}
+                  aoSelecionar={focarMesa}
+                  destaque="anel"
                 />
-                <LegendaPlanta />
+                <LegendaPlanta completa />
               </div>
 
               {/* DETALHE — desktop (painel ao lado) */}

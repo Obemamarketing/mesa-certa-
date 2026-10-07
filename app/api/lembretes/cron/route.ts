@@ -72,6 +72,14 @@ async function executar(request: NextRequest) {
   const lote = (data ?? []) as Reivindicado[];
   const resumo = { reivindicados: lote.length, enviados: 0, falhas: 0, repetir: 0, cancelados: 0 };
 
+  // Área de cada mesa vem da configuração central: se o administrador renomeou
+  // uma mesa, a lista do código estaria desatualizada.
+  const zonaPorMesa = new Map<string, string>();
+  if (lote.length > 0) {
+    const { data: mesas } = await supabase.from("mesas").select("numero, zona");
+    for (const m of (mesas ?? []) as { numero: string; zona: string }[]) zonaPorMesa.set(m.numero, m.zona);
+  }
+
   for (const item of lote) {
     // Última conferência antes de enviar: a reserva pode ter sido cancelada nesse meio-tempo.
     const { data: reserva } = await supabase.from("reservas").select("cancelada").eq("id", item.reserva_id).maybeSingle();
@@ -90,6 +98,7 @@ async function executar(request: NextRequest) {
         pessoas: item.pessoas,
         mesaNumero: item.mesa_numero,
         horario: item.horario,
+        zona: zonaPorMesa.get(item.mesa_numero),
       }),
     );
 

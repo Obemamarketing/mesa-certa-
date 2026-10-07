@@ -1,55 +1,59 @@
 "use client";
 
-// Planta do salão do ZéPelin, vista de cima. É REFERÊNCIA VISUAL: mostra onde
-// cada mesa fica e como ela está, mas não é por aqui que o cliente escolhe —
-// a escolha acontece nos cards do painel ao lado. Por isso nada aqui é
-// clicável e o SVG inteiro se apresenta como uma imagem só.
+// Planta OFICIAL do ZéPelin: a imagem public/planta-zepelin.webp, intocada, com
+// uma camada de marcadores por cima. É a MESMA planta no cliente (desktop e
+// celular), no painel Mesas e no modo operação — o que muda é só o
+// comportamento, controlado por props:
+//
+//   sem aoSelecionar  → referência visual (cliente): marcadores não clicáveis
+//   com aoSelecionar  → marcadores clicáveis para consultar (painel e operação)
+//   com aoMover       → modo calibração: arrasta o marcador até encaixar na
+//                       mesa desenhada (só no painel Mesas)
+//   zoomavel          → botões, pinça e arrastar (celular)
+//
+// Os marcadores ficam em porcentagem da imagem (x, y de 0 a 100), então a mesma
+// configuração vale em qualquer tamanho de tela. Para trocar a imagem por uma
+// de maior resolução basta substituir o arquivo, mantendo a proporção.
 
-import { mesas, statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
-import { MesaDesenhada, type EstadoMesa } from "./MesaDesenho";
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
+import { MESAS_PADRAO, type MesaConfig } from "@/lib/mesas";
 
-// Posições fixas das 15 mesas reais do sistema, dentro dos 3 ambientes.
-const POSICOES: Record<string, { x: number; y: number }> = {
-  // Salão anexo — mesas quadradas, à esquerda
-  "12": { x: 95, y: 120 },
-  "13": { x: 205, y: 120 },
-  "14": { x: 95, y: 265 },
-  "15": { x: 205, y: 265 },
-  // Salão principal — redondas, no centro
-  "05": { x: 370, y: 128 },
-  "06": { x: 500, y: 128 },
-  "07": { x: 370, y: 262 },
-  "08": { x: 500, y: 262 },
-  "09": { x: 650, y: 258 },
-  "10": { x: 650, y: 392 },
-  "11": { x: 420, y: 392 },
-  // Palco — mesas de dois, de frente para o tablado
-  "01": { x: 585, y: 520 },
-  "02": { x: 685, y: 520 },
-  "03": { x: 585, y: 620 },
-  "04": { x: 685, y: 620 },
+export const IMAGEM_PLANTA = "/planta-zepelin.webp";
+
+// Largura do marcador, em % da largura da imagem. Um pouco maior que os
+// quadradinhos desenhados na imagem, para cobri-los por inteiro: o estado real
+// do sistema é que vale, não a cor que veio pintada no desenho.
+const TAMANHO_MARCADOR = 4.2;
+
+export type EstadoMarcador = "livre" | "reservada" | "ocupada" | "pequena" | "selecionada";
+
+const CORES: Record<EstadoMarcador, { fundo: string; borda: string; texto: string }> = {
+  livre: { fundo: "#3F8F3F", borda: "#27662A", texto: "#FFFFFF" },
+  reservada: { fundo: "#E3A31B", borda: "#9A6A08", texto: "#2A1712" },
+  ocupada: { fundo: "#B8353F", borda: "#7F1721", texto: "#FFFFFF" },
+  pequena: { fundo: "#8C8C8C", borda: "#5F5F5F", texto: "#FFFFFF" },
+  selecionada: { fundo: "#F4C84F", borda: "#7A5200", texto: "#2A1712" },
 };
 
-function Etiqueta({ x, y, texto }: { x: number; y: number; texto: string }) {
-  const largura = texto.length * 7.4 + 26;
-  return (
-    <g>
-      <rect x={x - largura / 2} y={y - 13} width={largura} height={26} rx="5" fill="#2A1712" />
-      <text
-        x={x}
-        y={y + 1}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="11.5"
-        fontWeight="700"
-        letterSpacing="1.4"
-        fill="#F7F2E8"
-        style={{ fontFamily: "var(--font-body)" }}
-      >
-        {texto}
-      </text>
-    </g>
-  );
+function limitar(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
+}
+
+// s = escala. x e y = deslocamento como FRAÇÃO da largura/altura da planta (e
+// não em pixels): assim dá pra centralizar numa mesa só com as porcentagens
+// dela, sem ler o tamanho da tela durante o desenho.
+type Zoom = { s: number; x: number; y: number };
+const ZOOM_MAX = 4;
+
+function ajustarZoom(z: Zoom): Zoom {
+  const s = limitar(z.s, 1, ZOOM_MAX);
+  return { s, x: limitar(z.x, 1 - s, 0), y: limitar(z.y, 1 - s, 0) };
+}
+
+// deslocamento que deixa o ponto (px%, py%) da imagem no centro da janela
+function centralizarEm(px: number, py: number, s: number): Zoom {
+  return ajustarZoom({ s, x: 0.5 - (px / 100) * s, y: 0.5 - (py / 100) * s });
 }
 
 export default function PlantaRestaurante({
@@ -58,143 +62,375 @@ export default function PlantaRestaurante({
   horario,
   mesaSelecionada,
   pessoasMin,
+  mesas = MESAS_PADRAO,
+  aoSelecionar,
+  aoMover,
+  statusNeutro = false,
+  statusSimplificado = false,
+  destaque = "cor",
+  zoomavel = false,
 }: {
   reservas: Reserva[];
   dia: DiaReserva;
   horario: string;
   mesaSelecionada: string | null;
   pessoasMin?: number;
+  mesas?: MesaConfig[];
+  /** Torna os marcadores clicáveis (painel e modo operação). */
+  aoSelecionar?: (numero: string) => void;
+  /** Liga a calibração: arrastar o marcador até encaixar na mesa desenhada. */
+  aoMover?: (numero: string, x: number, y: number) => void;
+  /** Na calibração as cores de reserva atrapalham: tudo em estado neutro. */
+  statusNeutro?: boolean;
+  /** Na tela do cliente, reservada e ocupada são a mesma coisa: indisponível. */
+  statusSimplificado?: boolean;
+  /** "cor": a mesa escolhida muda de cor (cliente). "anel": mantém a cor do
+   *  estado e ganha um anel — admin e operação precisam ver o estado real. */
+  destaque?: "cor" | "anel";
+  /** Habilita botões, pinça e arrastar para ampliar (celular). */
+  zoomavel?: boolean;
 }) {
+  const editavel = Boolean(aoMover);
   const selecionada = mesas.find((m) => m.numero === mesaSelecionada);
 
+  // ---------- calibração (arrastar o marcador) ----------
+  const conteudoRef = useRef<HTMLDivElement | null>(null);
+  const arrastando = useRef<{ numero: string; dx: number; dy: number } | null>(null);
+
+  function paraPercentual(e: ReactPointerEvent) {
+    const el = conteudoRef.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    return { x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 };
+  }
+
+  function pegar(e: ReactPointerEvent, m: MesaConfig) {
+    if (!editavel) return;
+    const p = paraPercentual(e);
+    if (!p) return;
+    e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    arrastando.current = { numero: m.numero, dx: p.x - m.x, dy: p.y - m.y };
+    aoSelecionar?.(m.numero);
+  }
+
+  function arrastar(e: ReactPointerEvent) {
+    const alvo = arrastando.current;
+    if (!alvo || !aoMover) return;
+    const p = paraPercentual(e);
+    if (!p) return;
+    e.preventDefault();
+    aoMover(alvo.numero, limitar(p.x - alvo.dx, 1, 99), limitar(p.y - alvo.dy, 1, 99));
+  }
+
+  function soltar() {
+    arrastando.current = null;
+  }
+
+  // ---------- zoom e arrastar (celular) ----------
+  const janelaRef = useRef<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState<Zoom>({ s: 1, x: 0, y: 0 });
+  const ponteiros = useRef(new Map<number, { x: number; y: number }>());
+  const gesto = useRef<
+    | { tipo: "pinca"; d0: number; z0: Zoom; mx: number; my: number }
+    | { tipo: "arrasto"; px: number; py: number; z0: Zoom; moveu: boolean }
+    | null
+  >(null);
+
+  // Se a mesa escolhida muda enquanto a planta está ampliada, a planta anda
+  // até ela — senão o destaque podia ficar fora da tela. (Ajuste feito durante
+  // o desenho, o padrão do React para reagir a mudança de prop.)
+  const [selecaoAnterior, setSelecaoAnterior] = useState(mesaSelecionada);
+  if (selecaoAnterior !== mesaSelecionada) {
+    setSelecaoAnterior(mesaSelecionada);
+    if (zoomavel && zoom.s > 1 && selecionada) setZoom(centralizarEm(selecionada.x, selecionada.y, zoom.s));
+  }
+
+  function ampliar(fator: number) {
+    // amplia em torno do centro da janela
+    setZoom((z) => {
+      const s = limitar(z.s * fator, 1, ZOOM_MAX);
+      const r = s / z.s;
+      return ajustarZoom({ s, x: 0.5 - (0.5 - z.x) * r, y: 0.5 - (0.5 - z.y) * r });
+    });
+  }
+
+  function aoPressionar(e: ReactPointerEvent) {
+    if (!zoomavel) return;
+    ponteiros.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const el = janelaRef.current;
+    if (!el) return;
+    if (ponteiros.current.size === 2) {
+      const [a, b] = [...ponteiros.current.values()];
+      const r = el.getBoundingClientRect();
+      gesto.current = {
+        tipo: "pinca",
+        d0: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        z0: zoom,
+        // ponto médio dos dedos, como fração da janela
+        mx: ((a.x + b.x) / 2 - r.left) / (r.width || 1),
+        my: ((a.y + b.y) / 2 - r.top) / (r.height || 1),
+      };
+      el.setPointerCapture?.(e.pointerId);
+    } else if (ponteiros.current.size === 1 && zoom.s > 1) {
+      gesto.current = { tipo: "arrasto", px: e.clientX, py: e.clientY, z0: zoom, moveu: false };
+    }
+  }
+
+  function aoMexer(e: ReactPointerEvent) {
+    if (!zoomavel || !ponteiros.current.has(e.pointerId)) return;
+    ponteiros.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesto.current;
+    if (!g) return;
+
+    if (g.tipo === "pinca" && ponteiros.current.size >= 2) {
+      const [a, b] = [...ponteiros.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const s = limitar(g.z0.s * (d / g.d0), 1, ZOOM_MAX);
+      const r = s / g.z0.s;
+      setZoom(ajustarZoom({ s, x: g.mx - (g.mx - g.z0.x) * r, y: g.my - (g.my - g.z0.y) * r }));
+    } else if (g.tipo === "arrasto") {
+      const dx = e.clientX - g.px;
+      const dy = e.clientY - g.py;
+      if (!g.moveu && Math.hypot(dx, dy) < 4) return;
+      if (!g.moveu) {
+        g.moveu = true;
+        janelaRef.current?.setPointerCapture?.(e.pointerId);
+      }
+      const el = janelaRef.current;
+      if (!el) return;
+      setZoom(ajustarZoom({ s: g.z0.s, x: g.z0.x + dx / (el.clientWidth || 1), y: g.z0.y + dy / (el.clientHeight || 1) }));
+    }
+  }
+
+  function aoLevantar(e: ReactPointerEvent) {
+    ponteiros.current.delete(e.pointerId);
+    if (ponteiros.current.size < 2 && gesto.current?.tipo === "pinca") gesto.current = null;
+    if (ponteiros.current.size === 0) gesto.current = null;
+  }
+
+  // ---------- desenho ----------
+  const estiloJanela: CSSProperties = zoomavel
+    ? {
+        position: "relative",
+        overflow: "hidden",
+        // com a planta inteira na tela, o gesto vertical rola a página; já
+        // ampliada, o dedo passa a arrastar a planta
+        touchAction: zoom.s > 1 ? "none" : "pan-y",
+      }
+    : { position: "relative" };
+
+  const estiloConteudo: CSSProperties = {
+    position: "relative",
+    width: "100%",
+    // permite dimensionar o texto dos marcadores pela largura da imagem
+    containerType: "inline-size",
+    ...(zoomavel
+      ? { transform: `translate(${zoom.x * 100}%, ${zoom.y * 100}%) scale(${zoom.s})`, transformOrigin: "0 0" }
+      : null),
+  };
+
   return (
-    <svg
-      viewBox="0 0 1020 700"
-      className="w-full h-auto select-none"
-      role="img"
+    <div
+      ref={janelaRef}
+      style={estiloJanela}
+      onPointerDown={zoomavel ? aoPressionar : undefined}
+      onPointerMove={zoomavel ? aoMexer : undefined}
+      onPointerUp={zoomavel ? aoLevantar : undefined}
+      onPointerCancel={zoomavel ? aoLevantar : undefined}
+      role="group"
       aria-label={
         selecionada
-          ? `Planta do salão do ZéPelin. A mesa ${selecionada.numero}, no ${selecionada.zona}, está destacada.`
-          : "Planta do salão do ZéPelin, com as mesas por ambiente."
+          ? `Planta do ZéPelin. A mesa ${selecionada.numero}, no ${selecionada.zona}, está destacada.`
+          : "Planta do ZéPelin, com as mesas por ambiente."
       }
     >
-      <defs>
-        <pattern id="piso-madeira" width="64" height="15" patternUnits="userSpaceOnUse">
-          <rect width="64" height="15" fill="#EFE5D3" />
-          <line x1="0" y1="14.5" x2="64" y2="14.5" stroke="#E2D5BC" strokeWidth="1" />
-          <line x1="32" y1="0" x2="32" y2="15" stroke="#E2D5BC" strokeWidth="1" />
-        </pattern>
-        <pattern id="piso-anexo" width="34" height="34" patternUnits="userSpaceOnUse">
-          <rect width="34" height="34" fill="#ECE1CC" />
-          <rect width="34" height="34" fill="none" stroke="#DFD2B8" strokeWidth="1" />
-        </pattern>
-        <pattern id="area-servico" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="12" height="12" fill="#E6DCCA" />
-          <line x1="0" y1="0" x2="0" y2="12" stroke="#D5C8B0" strokeWidth="3.5" />
-        </pattern>
-        <pattern id="tapete-palco" width="18" height="18" patternUnits="userSpaceOnUse">
-          <rect width="18" height="18" fill="#6E2A22" />
-          <circle cx="9" cy="9" r="1.4" fill="#8A3A30" />
-        </pattern>
-      </defs>
+      <div
+        ref={conteudoRef}
+        style={estiloConteudo}
+        onPointerMove={editavel ? arrastar : undefined}
+        onPointerUp={editavel ? soltar : undefined}
+        onPointerCancel={editavel ? soltar : undefined}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={IMAGEM_PLANTA}
+          alt=""
+          draggable={false}
+          className="block w-full h-auto select-none"
+          style={{ pointerEvents: "none" }}
+        />
 
-      {/* piso por ambiente */}
-      <rect x="18" y="18" width="984" height="664" fill="url(#piso-madeira)" />
-      <rect x="18" y="18" width="267" height="382" fill="url(#piso-anexo)" />
-      <rect x="745" y="18" width="257" height="242" fill="url(#area-servico)" />
-      <rect x="600" y="18" width="145" height="132" fill="url(#area-servico)" />
-      <rect x="285" y="455" width="460" height="227" fill="#F3EADA" />
+        {mesas.map((m) => {
+          let status: EstadoMarcador = statusNeutro ? "livre" : statusMesa(reservas, dia, horario, m, pessoasMin);
+          if (statusSimplificado && status === "reservada") status = "ocupada";
+          const escolhida = mesaSelecionada === m.numero;
+          const estado: EstadoMarcador = escolhida && destaque === "cor" ? "selecionada" : status;
+          const cor = CORES[estado];
+          const interativo = Boolean(aoSelecionar) || editavel;
 
-      {/* ---------- COZINHA ---------- */}
-      <g>
-        <rect x="762" y="60" width="224" height="34" rx="4" fill="#CFC6B6" stroke="#B8AE9B" strokeWidth="1.5" />
-        <rect x="762" y="112" width="104" height="30" rx="4" fill="#CFC6B6" stroke="#B8AE9B" strokeWidth="1.5" />
-        <rect x="882" y="112" width="104" height="30" rx="4" fill="#CFC6B6" stroke="#B8AE9B" strokeWidth="1.5" />
-        <rect x="762" y="160" width="224" height="26" rx="4" fill="#CFC6B6" stroke="#B8AE9B" strokeWidth="1.5" />
-        <Etiqueta x={874} y={228} texto="COZINHA" />
-      </g>
+          const caixa: CSSProperties = {
+            position: "absolute",
+            left: `${m.x}%`,
+            top: `${m.y}%`,
+            width: `${TAMANHO_MARCADOR}%`,
+            aspectRatio: "1",
+            transform: "translate(-50%, -50%)",
+            padding: 0,
+          };
 
-      {/* ---------- BANHEIROS ---------- */}
-      <g>
-        <line x1="672" y1="18" x2="672" y2="112" stroke="#2A1712" strokeWidth="4" />
-        <circle cx="636" cy="56" r="11" fill="none" stroke="#9A9083" strokeWidth="2.5" />
-        <circle cx="709" cy="56" r="11" fill="none" stroke="#9A9083" strokeWidth="2.5" />
-        <Etiqueta x={672} y={131} texto="BANHEIROS" />
-      </g>
+          const rotulo = (
+            <>
+              {escolhida && (
+                // halo que pulsa: leva o olho direto à mesa escolhida
+                <span
+                  aria-hidden="true"
+                  className="halo-mesa"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    width: "230%",
+                    aspectRatio: "1",
+                    borderRadius: "9999px",
+                    background: "radial-gradient(circle, rgba(255,226,140,0.55) 0%, rgba(255,226,140,0) 70%)",
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
+              <span
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "14%",
+                  background: cor.fundo,
+                  color: cor.texto,
+                  border: `max(1px, 0.25cqw) solid ${cor.borda}`,
+                  boxShadow: escolhida
+                    ? "0 0 0 max(2px, 0.5cqw) #FFFFFF, 0 0 0 max(3px, 0.8cqw) #2A1712, 0 0.4cqw 1.2cqw rgba(0,0,0,0.55)"
+                    : "0 0.2cqw 0.6cqw rgba(0,0,0,0.45)",
+                  fontFamily: "var(--font-body)",
+                  fontWeight: 700,
+                  // proporcional à imagem, mas nunca menor que 8,5px: no celular
+                  // 2,1cqw daria um número minúsculo (o zoom resolve o resto)
+                  fontSize: "max(2.1cqw, 8.5px)",
+                  lineHeight: 1,
+                  outline: editavel ? "max(1px, 0.2cqw) dashed rgba(255,255,255,0.9)" : undefined,
+                  outlineOffset: editavel ? "max(2px, 0.5cqw)" : undefined,
+                }}
+              >
+                {m.numero}
+              </span>
+            </>
+          );
 
-      {/* ---------- BAR / CAIXA ---------- */}
-      <g>
-        <path d="M770 452 h216 v34 h-182 v170 h-34 Z" fill="#8A5A32" stroke="#5F3D20" strokeWidth="2.5" strokeLinejoin="round" />
-        <path d="M782 464 h192" stroke="#A9733F" strokeWidth="2" />
-        {[0, 1, 2, 3].map((i) => (
-          <circle key={`b${i}`} cx={866 + i * 42} cy={512} r="11" fill="#9A6F49" stroke="#6E4A2C" strokeWidth="1.5" />
-        ))}
-        {[0, 1, 2].map((i) => (
-          <circle key={`c${i}`} cx={830} cy={522 + i * 46} r="11" fill="#9A6F49" stroke="#6E4A2C" strokeWidth="1.5" />
-        ))}
-        <rect x="892" y="588" width="60" height="42" rx="5" fill="#CFC6B6" stroke="#B8AE9B" strokeWidth="1.5" />
-        <Etiqueta x={874} y={424} texto="BAR / CAIXA" />
-      </g>
+          if (!interativo) {
+            return (
+              <div key={m.numero} style={{ ...caixa, pointerEvents: "none", zIndex: escolhida ? 3 : 2 }}>
+                {rotulo}
+              </div>
+            );
+          }
 
-      {/* ---------- PALCO ---------- */}
-      <g>
-        <path d="M298 668 V490 L505 668 Z" fill="url(#tapete-palco)" stroke="#4A1A14" strokeWidth="3" strokeLinejoin="round" />
-        {/* instrumentos, só como marcação do tablado */}
-        <circle cx="352" cy="608" r="18" fill="none" stroke="#C98A3C" strokeWidth="2.5" opacity="0.85" />
-        <circle cx="352" cy="608" r="7" fill="#C98A3C" opacity="0.6" />
-        <rect x="392" y="628" width="44" height="12" rx="3" fill="#C98A3C" opacity="0.7" />
-        <rect x="318" y="520" width="12" height="40" rx="3" fill="#C98A3C" opacity="0.55" />
-        <Etiqueta x={372} y={476} texto="PALCO" />
-      </g>
+          return (
+            <button
+              key={m.numero}
+              type="button"
+              aria-label={`Mesa ${m.numero}, ${m.capacidade} lugares, ${m.zona}`}
+              aria-pressed={escolhida}
+              onPointerDown={editavel ? (e) => pegar(e, m) : undefined}
+              onClick={!editavel && aoSelecionar ? () => aoSelecionar(m.numero) : undefined}
+              style={{
+                ...caixa,
+                background: "transparent",
+                border: 0,
+                cursor: editavel ? "grab" : "pointer",
+                touchAction: editavel ? "none" : undefined,
+                zIndex: escolhida ? 3 : 2,
+              }}
+            >
+              {rotulo}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ---------- ENTRADA ---------- */}
-      <g>
-        <path d="M150 650 V596" stroke="#2A1712" strokeWidth="3.5" strokeLinecap="round" />
-        <path d="M136 612 L150 596 L164 612" fill="none" stroke="#2A1712" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-        <Etiqueta x={150} y={672} texto="ENTRADA" />
-      </g>
-
-      {/* ---------- rótulos de ambiente ---------- */}
-      <Etiqueta x={150} y={370} texto="SALÃO ANEXO" />
-      <Etiqueta x={378} y={48} texto="SALÃO PRINCIPAL" />
-
-      {/* ---------- paredes ---------- */}
-      <g stroke="#2A1712" fill="none" strokeLinejoin="round">
-        <rect x="18" y="18" width="984" height="664" strokeWidth="9" />
-        <path d="M285 18 V682" strokeWidth="6" />
-        <path d="M745 18 V682" strokeWidth="6" />
-        <path d="M18 400 H285" strokeWidth="6" />
-        <path d="M285 455 H745" strokeWidth="6" />
-        <path d="M600 18 V150 H745" strokeWidth="6" />
-        <path d="M745 260 H1002" strokeWidth="6" />
-        <path d="M745 400 H1002" strokeWidth="6" />
-        {/* vãos de passagem: trechos claros por cima da parede */}
-        <path d="M285 300 V360" strokeWidth="8" stroke="#EFE5D3" />
-        <path d="M285 520 V580" strokeWidth="8" stroke="#F3EADA" />
-        <path d="M745 300 V350" strokeWidth="8" stroke="#E6DCCA" />
-        <path d="M18 596 V650" strokeWidth="11" stroke="#EFE5D3" />
-      </g>
-
-      {/* ---------- mesas ---------- */}
-      {mesas.map((m) => {
-        const pos = POSICOES[m.numero];
-        if (!pos) return null;
-        const status = statusMesa(reservas, dia, horario, m, pessoasMin);
-        const estado: EstadoMesa = mesaSelecionada === m.numero ? "selecionada" : status;
-        return <MesaDesenhada key={m.numero} mesa={m} cx={pos.x} cy={pos.y} estado={estado} />;
-      })}
-    </svg>
+      {zoomavel && (
+        <div className="absolute right-2 top-2 flex flex-col gap-1.5" style={{ zIndex: 5 }}>
+          <BotaoZoom rotulo="Ampliar a planta" desabilitado={zoom.s >= ZOOM_MAX} aoClicar={() => ampliar(1.6)}>
+            +
+          </BotaoZoom>
+          <BotaoZoom rotulo="Reduzir a planta" desabilitado={zoom.s <= 1} aoClicar={() => ampliar(1 / 1.6)}>
+            −
+          </BotaoZoom>
+          {zoom.s > 1 && (
+            <BotaoZoom rotulo="Ver a planta inteira" aoClicar={() => setZoom({ s: 1, x: 0, y: 0 })}>
+              ⤢
+            </BotaoZoom>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
-// compacta: no celular os quatro itens têm que caber numa linha só.
-export function LegendaPlanta({ compacta = false }: { compacta?: boolean }) {
-  const itens = [
-    { cor: "#60733A", label: "Disponível" },
-    { cor: "#7F1717", label: "Ocupada" },
-    { cor: "#CFC6B6", label: "Indisponível" },
-    { cor: "#D99A18", label: "Selecionada" },
-  ];
+function BotaoZoom({
+  children,
+  rotulo,
+  aoClicar,
+  desabilitado,
+}: {
+  children: React.ReactNode;
+  rotulo: string;
+  aoClicar: () => void;
+  desabilitado?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={rotulo}
+      title={rotulo}
+      disabled={desabilitado}
+      onClick={aoClicar}
+      // pointer events do botão não podem virar gesto de arrastar a planta
+      onPointerDown={(e) => e.stopPropagation()}
+      className="w-9 h-9 flex items-center justify-center text-[19px] font-semibold disabled:opacity-35"
+      style={{
+        background: "rgba(252,250,245,0.94)",
+        color: "var(--color-dark)",
+        border: "1px solid rgba(42,23,18,0.35)",
+        borderRadius: "8px",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// compacta: no celular os itens têm que caber numa linha só.
+// completa: no painel e na operação, separa "reservada" de "ocupada" — quem
+// está na casa precisa saber quem já fez check-in. Pro cliente isso é detalhe
+// de operação e as duas aparecem como indisponíveis.
+export function LegendaPlanta({ compacta = false, completa = false }: { compacta?: boolean; completa?: boolean }) {
+  const itens = completa
+    ? [
+        { cor: CORES.livre.fundo, label: "Disponível" },
+        { cor: CORES.reservada.fundo, label: "Reservada" },
+        { cor: CORES.ocupada.fundo, label: "Ocupada" },
+        { cor: CORES.pequena.fundo, label: "Indisponível" },
+      ]
+    : [
+        { cor: CORES.livre.fundo, label: "Disponível" },
+        { cor: CORES.ocupada.fundo, label: "Ocupada" },
+        { cor: CORES.pequena.fundo, label: "Indisponível" },
+        { cor: CORES.selecionada.fundo, label: "Selecionada" },
+      ];
   return (
     <div className={`flex items-center ${compacta ? "justify-between" : "gap-7 flex-wrap"}`}>
       {itens.map((i) => (
@@ -204,8 +440,8 @@ export function LegendaPlanta({ compacta = false }: { compacta?: boolean }) {
           style={{ color: "var(--color-text-muted)" }}
         >
           <span
-            className={`rounded-full shrink-0 ${compacta ? "w-2.5 h-2.5" : "w-3 h-3"}`}
-            style={{ background: i.cor }}
+            className={`shrink-0 ${compacta ? "w-2.5 h-2.5" : "w-3 h-3"}`}
+            style={{ background: i.cor, borderRadius: "3px", border: "1px solid rgba(42,23,18,0.35)" }}
           />
           {i.label}
         </span>

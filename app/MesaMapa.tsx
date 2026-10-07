@@ -1,6 +1,7 @@
 "use client";
 
-import { mesas, statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
+import { statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
+import { useMesasConfig } from "@/lib/mesas";
 
 const CORES: Record<string, { bg: string; border: string; text: string }> = {
   livre: { bg: "var(--color-accent)", border: "var(--color-accent-dark)", text: "#fff" },
@@ -11,9 +12,10 @@ const CORES: Record<string, { bg: string; border: string; text: string }> = {
 };
 
 const ZONAS: { nome: string; classe: string }[] = [
-  { nome: "Palco", classe: "col-span-4" },
   { nome: "Salão principal", classe: "col-span-4" },
   { nome: "Salão anexo", classe: "col-span-4" },
+  { nome: "Palco", classe: "col-span-4" },
+  { nome: "Área externa", classe: "col-span-4" },
 ];
 
 export default function MesaMapa({
@@ -39,6 +41,8 @@ export default function MesaMapa({
   rotuloLivre?: string;
   rotuloSelecionada?: string;
 }) {
+  const { mesas } = useMesasConfig();
+
   return (
     <div className="flex flex-col gap-4">
       {ZONAS.map((zona) => {

@@ -5,27 +5,64 @@
 
 export type FormatoMesa = "redonda" | "quadrada";
 
-export type ZonaMesa = "Palco" | "Salão principal" | "Salão anexo";
+export type ZonaMesa = "Palco" | "Salão principal" | "Salão anexo" | "Área externa";
 
 export type Mesa = { numero: string; capacidade: number; formato: FormatoMesa; zona: ZonaMesa };
 
+// As quatro áreas da planta oficial, na ordem em que aparecem nos filtros.
+export const ZONAS_DA_PLANTA: ZonaMesa[] = ["Salão principal", "Salão anexo", "Palco", "Área externa"];
+
+// As 20 mesas da planta oficial (public/planta-zepelin.webp). A capacidade foi
+// inferida contando as cadeiras do desenho e deve ser conferida pela casa.
+// Depois de rodar supabase-migration-mesas.sql quem manda é a tabela "mesas".
 export const mesas: Mesa[] = [
-  { numero: "01", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "02", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "03", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "04", capacidade: 2, formato: "redonda", zona: "Palco" },
-  { numero: "05", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "06", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "07", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "08", capacidade: 4, formato: "redonda", zona: "Salão principal" },
-  { numero: "09", capacidade: 6, formato: "redonda", zona: "Salão principal" },
-  { numero: "10", capacidade: 6, formato: "redonda", zona: "Salão principal" },
-  { numero: "11", capacidade: 4, formato: "redonda", zona: "Salão principal" },
+  { numero: "01", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "02", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "03", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "04", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "05", capacidade: 6, formato: "quadrada", zona: "Salão principal" },
+  { numero: "06", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "07", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "08", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "09", capacidade: 4, formato: "quadrada", zona: "Salão principal" },
+  { numero: "10", capacidade: 6, formato: "quadrada", zona: "Salão principal" },
+  { numero: "11", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
   { numero: "12", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
-  { numero: "13", capacidade: 2, formato: "quadrada", zona: "Salão anexo" },
-  { numero: "14", capacidade: 2, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "13", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "14", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
   { numero: "15", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "16", capacidade: 4, formato: "quadrada", zona: "Salão anexo" },
+  { numero: "17", capacidade: 2, formato: "quadrada", zona: "Palco" },
+  { numero: "18", capacidade: 4, formato: "quadrada", zona: "Área externa" },
+  { numero: "19", capacidade: 4, formato: "quadrada", zona: "Área externa" },
+  { numero: "20", capacidade: 4, formato: "quadrada", zona: "Área externa" },
 ];
+
+// Posição do centro de cada mesa SOBRE A IMAGEM, em % da largura (x) e da
+// altura (y). Foram medidas em cima dos marcadores da própria planta. É só o
+// padrão: depois da migração, o painel Mesas calibra e salva no Supabase.
+export const POSICOES_PADRAO: Record<string, { x: number; y: number }> = {
+  "01": { x: 42.33, y: 32.89 },
+  "02": { x: 53.2, y: 35.12 },
+  "03": { x: 63.53, y: 35.16 },
+  "04": { x: 74.09, y: 35.33 },
+  "05": { x: 44.49, y: 44.35 },
+  "06": { x: 60.22, y: 46.46 },
+  "07": { x: 73.63, y: 46.25 },
+  "08": { x: 42.21, y: 54.16 },
+  "09": { x: 51.81, y: 54.12 },
+  "10": { x: 69.08, y: 56.43 },
+  "11": { x: 12.37, y: 35.28 },
+  "12": { x: 22.47, y: 35.28 },
+  "13": { x: 12.37, y: 46.21 },
+  "14": { x: 22.59, y: 46.25 },
+  "15": { x: 12.37, y: 59.77 },
+  "16": { x: 22.51, y: 59.77 },
+  "17": { x: 38.16, y: 79.18 },
+  "18": { x: 15.46, y: 17.11 },
+  "19": { x: 34.97, y: 17.23 },
+  "20": { x: 51.89, y: 17.35 },
+};
 
 // O ZéPelin só recebe reservas às 19h30 — não há seletor de horário na interface.
 export const HORARIO_FIXO = "19:30";

@@ -16,21 +16,22 @@ import {
   DIAS,
   dataDoDia,
   formatarDataCurta,
-  mesas,
   statusMesa,
   type DiaReserva,
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
+import { useMesasConfig } from "@/lib/mesas";
 import PlantaRestaurante, { LegendaPlanta } from "./PlantaRestaurante";
 import { MesaMiniatura, type EstadoMesa } from "./MesaDesenho";
 
 // Só as 3 áreas que existem de verdade no sistema (lib/regras.ts).
 const AREAS: { chave: Mesa["zona"] | "todas"; label: string }[] = [
   { chave: "todas", label: "Todas" },
-  { chave: "Palco", label: "Palco" },
   { chave: "Salão principal", label: "Salão principal" },
   { chave: "Salão anexo", label: "Salão anexo" },
+  { chave: "Palco", label: "Palco" },
+  { chave: "Área externa", label: "Área externa" },
 ];
 
 const ETAPAS = ["Escolha da mesa", "Seus dados", "Confirmação"];
@@ -46,6 +47,7 @@ function descricaoDaMesa(mesa: Mesa): string {
     Palco: "Fica de frente para o palco, pertinho da música.",
     "Salão principal": "Fica no centro do salão principal.",
     "Salão anexo": "Fica no salão anexo, num canto mais tranquilo.",
+    "Área externa": "Fica na área externa, sob os guarda-sóis.",
   };
   return `${tamanho} ${lugar[mesa.zona]}`;
 }
@@ -72,6 +74,7 @@ export default function EscolhaMesaDesktop({
   onContinuar: () => void;
 }) {
   const [area, setArea] = useState<Mesa["zona"] | "todas">("todas");
+  const { mesas } = useMesasConfig();
 
   const mesaObj = mesas.find((m) => m.numero === mesaNumero) ?? null;
   const visiveis = area === "todas" ? mesas : mesas.filter((m) => m.zona === area);
@@ -152,6 +155,8 @@ export default function EscolhaMesaDesktop({
                 horario={horario}
                 mesaSelecionada={mesaNumero}
                 pessoasMin={pessoasMin}
+                mesas={mesas}
+                statusSimplificado
               />
               <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
                 <LegendaPlanta />

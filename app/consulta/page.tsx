@@ -13,11 +13,11 @@ import {
   codigoDaReserva,
   dataDoDia,
   formatarDataCurta,
-  mesas,
   minutosDoHorario,
   statusChegada,
   type Reserva,
 } from "@/lib/reservas";
+import { useMesasConfig } from "@/lib/mesas";
 
 function horaDaTolerancia(horario: string): string {
   const total = minutosDoHorario(horario) + TOLERANCIA_MINUTOS;
@@ -37,6 +37,7 @@ function estadoDaReserva(r: Reserva, minutosAgora: number | null, hojeEhODia: bo
 
 export default function ConsultaPage() {
   const router = useRouter();
+  const { mesas } = useMesasConfig();
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState<Reserva[] | null>(null);
   const [buscando, setBuscando] = useState(false);

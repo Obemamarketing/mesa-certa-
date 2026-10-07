@@ -58,6 +58,23 @@
   --font-body: var(--font-body);
 }
 
+/* Halo que pulsa em volta da mesa escolhida na planta. */
+@keyframes pulso-mesa {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.9; }
+  50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.45; }
+}
+
+.halo-mesa {
+  animation: pulso-mesa 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .halo-mesa {
+    animation: none;
+    transform: translate(-50%, -50%);
+  }
+}
+
 html {
   /* +8% em toda a tipografia baseada em rem (text-xs, text-sm, text-base...) */
   font-size: 108%;

@@ -8,16 +8,16 @@ import {
   cancelarReserva,
   desfazerCheckin,
   fazerCheckin,
-  mesas,
   minutosDoHorario,
   statusChegada,
   useReservas,
   type DiaReserva,
 } from "@/lib/reservas";
-import PlantaVisual, { LegendaPlanta } from "../PlantaVisual";
+import PlantaRestaurante, { LegendaPlanta } from "../../PlantaRestaurante";
 import DetalheMesaConteudo from "../DetalheMesa";
 import StatusBadge from "../StatusBadge";
 import NewReservationModal from "../NewReservationModal";
+import { useMesasConfig } from "@/lib/mesas";
 
 function diaDeHoje(): DiaReserva {
   const d = new Date().getDay();
@@ -26,6 +26,7 @@ function diaDeHoje(): DiaReserva {
 
 export default function ModoOperacaoPage() {
   const { reservas, carregando } = useReservas();
+  const { mesas } = useMesasConfig();
   const [agora, setAgora] = useState<Date | null>(null);
   const [dia, setDia] = useState<DiaReserva>("sexta");
   const [mesaFoco, setMesaFoco] = useState<string | null>(null);
@@ -112,7 +113,8 @@ export default function ModoOperacaoPage() {
           </div>
         </div>
 
-        <div className="grid xl:grid-cols-[1.1fr_1fr] gap-5 items-start">
+        {/* a planta é o elemento principal da operação: fica com a maior parte */}
+        <div className="grid xl:grid-cols-[minmax(0,470px)_minmax(0,1.35fr)] gap-5 items-start">
           {/* PRÓXIMAS RESERVAS */}
           <section className="border flex flex-col" style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}>
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
@@ -198,16 +200,18 @@ export default function ModoOperacaoPage() {
                 + Nova reserva
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] xl:grid-cols-1 2xl:grid-cols-[1fr_220px] gap-4 items-start">
-              <div className="flex flex-col gap-3 max-w-md mx-auto w-full">
-                <PlantaVisual
+            <div className="grid grid-cols-1 2xl:grid-cols-[1fr_260px] gap-4 items-start">
+              <div className="flex flex-col gap-3 w-full">
+                <PlantaRestaurante
                   reservas={reservas}
                   dia={dia}
                   horario={HORARIO_FIXO}
                   mesaSelecionada={mesaFoco}
-                  onSelecionar={(n) => setMesaFoco((atual) => (atual === n ? null : n))}
+                  mesas={mesas}
+                  aoSelecionar={(n) => setMesaFoco((atual) => (atual === n ? null : n))}
+                  destaque="anel"
                 />
-                <LegendaPlanta />
+                <LegendaPlanta completa />
               </div>
               {mesaFocoObj && (
                 <div className="border p-4 flex flex-col gap-3" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}>

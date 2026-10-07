@@ -9,6 +9,9 @@ export type DadosLembrete = {
   pessoas: number;
   mesaNumero: string;
   horario: string; // "19:30"
+  /** Área da mesa vinda da configuração central (tabela "mesas"). Sem ela,
+   *  cai na lista do código — que fica desatualizada se a mesa for renomeada. */
+  zona?: string;
 };
 
 // "19:30" → "19h30"; "20:00" → "20h"
@@ -24,14 +27,14 @@ function limpar(texto: string): string {
 }
 
 export function parametrosDoTemplate(d: DadosLembrete): string[] {
-  const mesa = mesas.find((m) => m.numero === d.mesaNumero);
+  const zona = d.zona ?? mesas.find((m) => m.numero === d.mesaNumero)?.zona;
   const primeiroNome = limpar(d.nome).split(" ")[0] || "cliente";
   return [
     primeiroNome, // {{1}}
     horarioFalado(d.horario), // {{2}}
     `${d.pessoas} ${d.pessoas === 1 ? "pessoa" : "pessoas"}`, // {{3}}
     `Mesa ${d.mesaNumero}`, // {{4}}
-    mesa?.zona ?? "ZéPelin", // {{5}}
+    zona ?? "ZéPelin", // {{5}}
     horaLimiteDaTolerancia(d.horario), // {{6}}
     codigoDaReserva(d.reservaId), // {{7}}
   ];

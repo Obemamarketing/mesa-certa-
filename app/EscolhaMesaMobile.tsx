@@ -13,21 +13,21 @@ import {
   DIAS,
   dataDoDia,
   formatarDataCurta,
-  mesas,
   statusMesa,
   type DiaReserva,
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
-import PlantaRestauranteVertical from "./PlantaRestauranteVertical";
-import { LegendaPlanta } from "./PlantaRestaurante";
+import { useMesasConfig } from "@/lib/mesas";
+import PlantaRestaurante, { LegendaPlanta } from "./PlantaRestaurante";
 import { MesaMiniatura, type EstadoMesa } from "./MesaDesenho";
 
 const AREAS: { chave: Mesa["zona"] | "todas"; label: string }[] = [
   { chave: "todas", label: "Todas" },
-  { chave: "Palco", label: "Palco" },
   { chave: "Salão principal", label: "Salão principal" },
   { chave: "Salão anexo", label: "Salão anexo" },
+  { chave: "Palco", label: "Palco" },
+  { chave: "Área externa", label: "Área externa" },
 ];
 
 const ETAPAS = ["Escolha da mesa", "Seus dados", "Confirmação"];
@@ -43,6 +43,7 @@ function descricaoDaMesa(mesa: Mesa): string {
     Palco: "Fica de frente para o palco.",
     "Salão principal": "Fica no centro do salão principal.",
     "Salão anexo": "Fica no salão anexo, num canto mais tranquilo.",
+    "Área externa": "Fica na área externa, sob os guarda-sóis.",
   };
   return `${tamanho} ${lugar[mesa.zona]}`;
 }
@@ -69,6 +70,7 @@ export default function EscolhaMesaMobile({
   onContinuar: () => void;
 }) {
   const [area, setArea] = useState<Mesa["zona"] | "todas">("todas");
+  const { mesas } = useMesasConfig();
 
   const mesaObj = mesas.find((m) => m.numero === mesaNumero) ?? null;
   const visiveis = area === "todas" ? mesas : mesas.filter((m) => m.zona === area);
@@ -134,12 +136,15 @@ export default function EscolhaMesaMobile({
           borderBottom: "1px solid var(--color-border)",
         }}
       >
-        <PlantaRestauranteVertical
+        <PlantaRestaurante
           reservas={reservas}
           dia={dia}
           horario={horario}
           mesaSelecionada={mesaNumero}
           pessoasMin={pessoasMin}
+          mesas={mesas}
+          statusSimplificado
+          zoomavel
         />
         <div className="mt-3 pt-3 px-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
           <LegendaPlanta compacta />
