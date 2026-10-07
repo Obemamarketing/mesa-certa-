@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Inter } from "next/font/google";
+import { DM_Serif_Display, Hanken_Grotesk } from "next/font/google";
 import { reservaBrand } from "@/lib/reservaBrand";
 import "./globals.css";
 
@@ -9,7 +9,8 @@ const serifDisplay = DM_Serif_Display({
   weight: ["400"],
 });
 
-const inter = Inter({
+// Grotesca de texto: legível e sóbria, sem a cara genérica de painel SaaS.
+const fonteTexto = Hanken_Grotesk({
   variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -37,7 +38,7 @@ const corBase = `:root{
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="pt-BR" className={`${serifDisplay.variable} ${inter.variable} h-full antialiased`}>
+    <html lang="pt-BR" className={`${serifDisplay.variable} ${fonteTexto.variable} h-full antialiased`}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: corBase }} />
       </head>
