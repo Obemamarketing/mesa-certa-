@@ -61,6 +61,7 @@ export default function PlantaRestaurante({
   dia,
   horario,
   mesaSelecionada,
+  mesasSelecionadas,
   pessoasMin,
   mesas = MESAS_PADRAO,
   aoSelecionar,
@@ -74,6 +75,9 @@ export default function PlantaRestaurante({
   dia: DiaReserva;
   horario: string;
   mesaSelecionada: string | null;
+  /** Várias mesas destacadas ao mesmo tempo (grupo que reserva mais de uma).
+   *  Quando vem, vale no lugar de mesaSelecionada. */
+  mesasSelecionadas?: string[];
   pessoasMin?: number;
   mesas?: MesaConfig[];
   /** Torna os marcadores clicáveis (painel e modo operação). */
@@ -91,7 +95,9 @@ export default function PlantaRestaurante({
   zoomavel?: boolean;
 }) {
   const editavel = Boolean(aoMover);
-  const selecionada = mesas.find((m) => m.numero === mesaSelecionada);
+  const marcadas = mesasSelecionadas ?? (mesaSelecionada ? [mesaSelecionada] : []);
+  // a última escolhida é a que a planta acompanha quando está ampliada
+  const selecionada = mesas.find((m) => m.numero === marcadas[marcadas.length - 1]);
 
   // ---------- calibração (arrastar o marcador) ----------
   const conteudoRef = useRef<HTMLDivElement | null>(null);
@@ -141,9 +147,10 @@ export default function PlantaRestaurante({
   // Se a mesa escolhida muda enquanto a planta está ampliada, a planta anda
   // até ela — senão o destaque podia ficar fora da tela. (Ajuste feito durante
   // o desenho, o padrão do React para reagir a mudança de prop.)
-  const [selecaoAnterior, setSelecaoAnterior] = useState(mesaSelecionada);
-  if (selecaoAnterior !== mesaSelecionada) {
-    setSelecaoAnterior(mesaSelecionada);
+  const chaveDaSelecao = marcadas.join(",");
+  const [selecaoAnterior, setSelecaoAnterior] = useState(chaveDaSelecao);
+  if (selecaoAnterior !== chaveDaSelecao) {
+    setSelecaoAnterior(chaveDaSelecao);
     if (zoomavel && zoom.s > 1 && selecionada) setZoom(centralizarEm(selecionada.x, selecionada.y, zoom.s));
   }
 
@@ -242,7 +249,7 @@ export default function PlantaRestaurante({
       role="group"
       aria-label={
         selecionada
-          ? `Planta do ZéPelin. A mesa ${selecionada.numero}, no ${selecionada.zona}, está destacada.`
+          ? `Planta do ZéPelin. ${marcadas.length > 1 ? `As mesas ${marcadas.join(", ")} estão destacadas` : `A mesa ${selecionada.numero}, no ${selecionada.zona}, está destacada`}.`
           : "Planta do ZéPelin, com as mesas por ambiente."
       }
     >
@@ -265,7 +272,7 @@ export default function PlantaRestaurante({
         {mesas.map((m) => {
           let status: EstadoMarcador = statusNeutro ? "livre" : statusMesa(reservas, dia, horario, m, pessoasMin);
           if (statusSimplificado && status === "reservada") status = "ocupada";
-          const escolhida = mesaSelecionada === m.numero;
+          const escolhida = marcadas.includes(m.numero);
           const estado: EstadoMarcador = escolhida && destaque === "cor" ? "selecionada" : status;
           const cor = CORES[estado];
           const interativo = Boolean(aoSelecionar) || editavel;

@@ -13,6 +13,7 @@ import {
   codigoDaReserva,
   dataDoDia,
   formatarDataCurta,
+  MINIMO_LETRAS_NA_BUSCA,
   minutosDoHorario,
   statusChegada,
   type Reserva,
@@ -53,7 +54,7 @@ export default function ConsultaPage() {
   }, []);
 
   async function buscar() {
-    if (!termo.trim() || buscando) return;
+    if (termo.trim().length < MINIMO_LETRAS_NA_BUSCA || buscando) return;
     setBuscando(true);
     setAcao(null);
     setResultados(await buscarReservaDoCliente(termo));
@@ -83,24 +84,24 @@ export default function ConsultaPage() {
           </span>
           <h1 className="font-display text-[34px] sm:text-[40px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Consultar minha reserva</h1>
           <p className="text-[15px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-            Consulte os detalhes da sua reserva usando o WhatsApp informado na reserva ou o código recebido na confirmação.
+            Digite o nome que você usou ao reservar para ver os detalhes da sua reserva.
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
-          <label htmlFor="termo" className="text-[12.5px] font-medium" style={{ color: "var(--color-text-muted)" }}>WhatsApp ou código da reserva</label>
+          <label htmlFor="termo" className="text-[12.5px] font-medium" style={{ color: "var(--color-text-muted)" }}>Nome na reserva</label>
           <input
             id="termo"
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && buscar()}
-            placeholder="(41) 99999-9999 ou código"
+            placeholder="Ex.: Maria Souza" autoComplete="name"
             className="border px-5 py-4 text-[15px] outline-none"
             style={{ borderColor: "var(--color-border)", borderRadius: "14px", background: "var(--color-surface)", color: "var(--color-dark)" }}
           />
           <button
             onClick={buscar}
-            disabled={!termo.trim() || buscando}
+            disabled={termo.trim().length < MINIMO_LETRAS_NA_BUSCA || buscando}
             className="py-4 text-[15px] font-semibold text-white disabled:opacity-40"
             style={{ background: "var(--color-primary)", borderRadius: "14px" }}
           >
@@ -112,7 +113,7 @@ export default function ConsultaPage() {
           <div className="border px-5 py-6 flex flex-col gap-1.5" style={{ borderColor: "var(--color-border)", borderRadius: "16px", background: "var(--color-surface)" }}>
             <p className="font-display text-xl" style={{ color: "var(--color-dark)" }}>Reserva não encontrada</p>
             <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-              Não encontramos nenhuma reserva com esses dados. Confira o número de WhatsApp usado na reserva ou o código da confirmação e tente de novo.
+              Não encontramos nenhuma reserva com esse nome. Confira se digitou o mesmo nome usado na reserva e tente de novo.
             </p>
             <Link href="/" className="text-[14px] font-semibold mt-2" style={{ color: "var(--color-primary)" }}>Fazer uma nova reserva →</Link>
           </div>

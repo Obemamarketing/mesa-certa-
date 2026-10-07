@@ -23,8 +23,11 @@ type Reivindicado = {
   pessoas: number;
   mesa_numero: string;
   horario: string;
+  data_reserva: string | null;
   tentativas: number;
 };
+
+const soDigitos = (t: string) => t.replace(/\D/g, "");
 
 function autorizado(request: NextRequest): boolean {
   const segredo = process.env.CRON_SECRET;
@@ -80,47 +83,79 @@ async function executar(request: NextRequest) {
     for (const m of (mesas ?? []) as { numero: string; zona: string }[]) zonaPorMesa.set(m.numero, m.zona);
   }
 
+  // Última conferência antes de enviar: a reserva pode ter sido cancelada
+  // nesse meio-tempo. Uma consulta só, pra todo o lote.
+  const { data: estados } = await supabase
+    .from("reservas")
+    .select("id, cancelada")
+    .in("id", lote.map((i) => i.reserva_id));
+  const ativas = new Set(((estados ?? []) as { id: string; cancelada: boolean }[]).filter((r) => !r.cancelada).map((r) => r.id));
+
+  const vivos: Reivindicado[] = [];
   for (const item of lote) {
-    // Última conferência antes de enviar: a reserva pode ter sido cancelada nesse meio-tempo.
-    const { data: reserva } = await supabase.from("reservas").select("cancelada").eq("id", item.reserva_id).maybeSingle();
-    if (!reserva || reserva.cancelada) {
-      await supabase.from("lembretes_whatsapp").update({ status: "cancelado", atualizado_em: new Date().toISOString() }).eq("id", item.lembrete_id);
-      resumo.cancelados++;
+    if (ativas.has(item.reserva_id)) {
+      vivos.push(item);
       continue;
     }
+    await supabase.from("lembretes_whatsapp").update({ status: "cancelado", atualizado_em: new Date().toISOString() }).eq("id", item.lembrete_id);
+    resumo.cancelados++;
+  }
+
+  // Grupo que reservou mais de uma mesa tem uma reserva por mesa, mas o
+  // cliente é um só: junta pelo mesmo WhatsApp, nome e data e manda UM aviso.
+  const grupos = new Map<string, Reivindicado[]>();
+  for (const item of vivos) {
+    const chave = [soDigitos(item.telefone), item.nome.trim().toLowerCase(), item.data_reserva ?? ""].join("|");
+    grupos.set(chave, [...(grupos.get(chave) ?? []), item]);
+  }
+
+  for (const membros of grupos.values()) {
+    const lider = membros[0];
+    const mesasDoGrupo = membros.map((m) => m.mesa_numero).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+    const zonasDoGrupo = [...new Set(mesasDoGrupo.map((n) => zonaPorMesa.get(n)).filter((z): z is string => Boolean(z)))];
+    const idsDosLembretes = membros.map((m) => m.lembrete_id);
+    const tentativas = Math.max(...membros.map((m) => m.tentativas));
 
     const resultado = await enviarTemplate(
       config,
-      item.telefone,
+      lider.telefone,
       parametrosDoTemplate({
-        reservaId: item.reserva_id,
-        nome: item.nome,
-        pessoas: item.pessoas,
-        mesaNumero: item.mesa_numero,
-        horario: item.horario,
-        zona: zonaPorMesa.get(item.mesa_numero),
+        reservaId: lider.reserva_id,
+        nome: lider.nome,
+        pessoas: membros.reduce((soma, m) => soma + m.pessoas, 0),
+        mesaNumero: mesasDoGrupo[0],
+        mesasDoGrupo,
+        zonasDoGrupo,
+        horario: lider.horario,
       }),
     );
 
+    // o resultado vale pra todas as reservas do grupo
     const agora = new Date().toISOString();
     if (resultado.ok) {
       await supabase
         .from("lembretes_whatsapp")
-        .update({ status: "enviado", enviado_em: agora, wa_message_id: resultado.messageId, erro: null, atualizado_em: agora })
-        .eq("id", item.lembrete_id);
+        .update({
+          status: "enviado",
+          enviado_em: agora,
+          wa_message_id: resultado.messageId,
+          erro: membros.length > 1 ? `Aviso único enviado para as mesas ${mesasDoGrupo.join(", ")}` : null,
+          atualizado_em: agora,
+        })
+        .in("id", idsDosLembretes);
       resumo.enviados++;
-    } else if (resultado.tentarDeNovo && item.tentativas < MAX_TENTATIVAS) {
+    } else if (resultado.tentarDeNovo && tentativas < MAX_TENTATIVAS) {
       // falha temporária: volta pra fila, o próximo ciclo (5 min) tenta de novo
       await supabase
         .from("lembretes_whatsapp")
-        .update({ status: "pendente", erro: `Tentativa ${item.tentativas}/${MAX_TENTATIVAS}: ${resultado.erro}`, atualizado_em: agora })
-        .eq("id", item.lembrete_id);
+        .update({ status: "pendente", erro: `Tentativa ${tentativas}/${MAX_TENTATIVAS}: ${resultado.erro}`, atualizado_em: agora })
+        .in("id", idsDosLembretes);
       resumo.repetir++;
     } else {
       await supabase
         .from("lembretes_whatsapp")
         .update({ status: "falhou", erro: resultado.erro, atualizado_em: agora })
-        .eq("id", item.lembrete_id);
+        .in("id", idsDosLembretes);
       resumo.falhas++;
     }
   }

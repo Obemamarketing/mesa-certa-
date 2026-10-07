@@ -16,6 +16,7 @@ import {
   DIAS,
   dataDoDia,
   formatarDataCurta,
+  situacaoDoGrupo,
   statusMesa,
   type DiaReserva,
   type Mesa,
@@ -57,9 +58,8 @@ export default function EscolhaMesaDesktop({
   dia,
   horario,
   pessoas,
-  pessoasMin,
-  mesaNumero,
-  onSelecionar,
+  mesasNumeros,
+  onAlternar,
   onVoltar,
   onContinuar,
 }: {
@@ -67,16 +67,21 @@ export default function EscolhaMesaDesktop({
   dia: DiaReserva;
   horario: string;
   pessoas: number;
-  pessoasMin?: number;
-  mesaNumero: string | null;
-  onSelecionar: (numero: string) => void;
+  /** Mesas escolhidas, na ordem em que foram escolhidas. */
+  mesasNumeros: string[];
+  /** Escolhe ou desmarca uma mesa. */
+  onAlternar: (numero: string) => void;
   onVoltar: () => void;
   onContinuar: () => void;
 }) {
   const [area, setArea] = useState<Mesa["zona"] | "todas">("todas");
   const { mesas } = useMesasConfig();
 
-  const mesaObj = mesas.find((m) => m.numero === mesaNumero) ?? null;
+  const escolhidas = mesasNumeros.map((n) => mesas.find((m) => m.numero === n)).filter((m): m is NonNullable<typeof m> => Boolean(m));
+  const situacao = situacaoDoGrupo(escolhidas, pessoas);
+  const maiorMesa = Math.max(...mesas.map((m) => m.capacidade));
+  const precisaDeVarias = pessoas > maiorMesa;
+  const mesaObj = escolhidas.length === 1 ? escolhidas[0] : null;
   const visiveis = area === "todas" ? mesas : mesas.filter((m) => m.zona === area);
   const rotuloLista = area === "todas" ? "Todas as mesas" : `Mesas do ${area.toLowerCase()}`;
   const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
@@ -153,8 +158,8 @@ export default function EscolhaMesaDesktop({
                 reservas={reservas}
                 dia={dia}
                 horario={horario}
-                mesaSelecionada={mesaNumero}
-                pessoasMin={pessoasMin}
+                mesaSelecionada={null}
+                mesasSelecionadas={mesasNumeros}
                 mesas={mesas}
                 statusSimplificado
               />
@@ -173,30 +178,40 @@ export default function EscolhaMesaDesktop({
               borderRadius: "18px",
               // o painel inteiro cabe na tela: só a lista de mesas rola,
               // o resumo e o botão ficam sempre à vista
-              maxHeight: "calc(100vh - 140px)",
+              maxHeight: "calc(100vh - 104px)",
             }}
           >
-            <div className="px-7 pt-7 pb-5 shrink-0">
+            <div className="px-7 pt-6 pb-4 shrink-0">
               <h1 className="font-display text-[38px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>
                 Escolha sua mesa
               </h1>
               <p className="text-[15px] mt-1.5" style={{ color: "var(--color-text-muted)" }}>
-                Selecione uma área e escolha uma mesa disponível.
+                {pessoas > 1
+                  ? "A soma dos lugares das mesas precisa cobrir o grupo."
+                  : "Selecione uma área e escolha uma mesa disponível."}
               </p>
               <p className="text-[13px] mt-3.5 pt-3.5" style={{ color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)" }}>
                 {diaLabel} · {horario} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
               </p>
+              {precisaDeVarias && (
+                <p
+                  className="text-[13px] mt-3 px-3.5 py-2.5 leading-snug"
+                  style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "10px" }}
+                >
+                  Grupo maior que a maior mesa ({maiorMesa} lugares): escolha mais de uma.
+                </p>
+              )}
             </div>
 
             {/* filtros por área */}
-            <div className="px-7 pb-5 flex flex-wrap gap-2 shrink-0">
+            <div className="px-7 pb-3.5 flex flex-wrap gap-1.5 shrink-0">
               {AREAS.map((a) => {
                 const ativo = area === a.chave;
                 return (
                   <button
                     key={a.chave}
                     onClick={() => setArea(a.chave)}
-                    className="px-4 py-2 text-[13px] font-medium border transition-colors"
+                    className="px-3 py-1.5 text-[12.5px] font-medium border transition-colors"
                     style={{
                       borderRadius: "999px",
                       borderColor: ativo ? "var(--color-primary)" : "var(--color-border)",
@@ -217,15 +232,19 @@ export default function EscolhaMesaDesktop({
               </p>
               <div className="grid grid-cols-3 gap-2.5">
                 {visiveis.map((m) => {
-                  const status = statusMesa(reservas, dia, horario, m, pessoasMin);
-                  const selecionada = mesaNumero === m.numero;
-                  const indisponivel = status !== "livre" && !selecionada;
+                  // sem filtro por capacidade: mesa pequena também serve, o grupo só junta mesas
+                  const status = statusMesa(reservas, dia, horario, m);
+                  const selecionada = mesasNumeros.includes(m.numero);
+                  // grupo já acomodado: as outras mesas travam, pra ninguém reservar mesa a mais
+                  const jaAcomodado = situacao.cobre && !selecionada;
+                  const indisponivel = (status !== "livre" && !selecionada) || jaAcomodado;
                   const estado: EstadoMesa = selecionada ? "selecionada" : status;
                   return (
                     <button
                       key={m.numero}
                       disabled={indisponivel}
-                      onClick={() => onSelecionar(m.numero)}
+                      onClick={() => onAlternar(m.numero)}
+                      title={jaAcomodado ? "Seu grupo já está acomodado. Desmarque uma mesa para trocar." : undefined}
                       aria-pressed={selecionada}
                       className="relative flex flex-col gap-1.5 p-3 border text-left transition-transform disabled:cursor-not-allowed"
                       style={{
@@ -277,18 +296,18 @@ export default function EscolhaMesaDesktop({
               )}
             </div>
 
-            {/* mesa selecionada — fica sempre visível, junto do botão */}
+            {/* mesas selecionadas — ficam sempre visíveis, junto do botão */}
             <div className="px-7 pt-5 shrink-0" style={{ borderTop: "1px solid var(--color-border)" }}>
               <div
                 className="p-4"
                 style={{
                   borderRadius: "14px",
-                  background: mesaObj ? "var(--color-bg)" : "transparent",
-                  border: `1px ${mesaObj ? "solid" : "dashed"} var(--color-border)`,
+                  background: escolhidas.length ? "var(--color-bg)" : "transparent",
+                  border: `1px ${escolhidas.length ? "solid" : "dashed"} var(--color-border)`,
                 }}
               >
                 <p className="text-[11px] font-bold tracking-[0.16em] uppercase" style={{ color: "var(--color-text-muted)" }}>
-                  Mesa selecionada
+                  {escolhidas.length > 1 ? "Mesas selecionadas" : "Mesa selecionada"}
                 </p>
 
                 {mesaObj ? (
@@ -306,9 +325,42 @@ export default function EscolhaMesaDesktop({
                       </p>
                     </div>
                   </div>
+                ) : escolhidas.length > 1 ? (
+                  <div className="flex flex-wrap gap-2 mt-2.5">
+                    {escolhidas.map((m) => {
+                      const parte = situacao.partes.find((p) => p.numero === m.numero);
+                      return (
+                        <span
+                          key={m.numero}
+                          className="inline-flex items-baseline gap-2 px-3 py-1.5"
+                          style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "10px" }}
+                        >
+                          <strong className="font-display text-[20px] leading-none" style={{ color: "var(--color-dark)" }}>{m.numero}</strong>
+                          <span className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>
+                            {parte ? `${parte.pessoas} pessoa${parte.pessoas === 1 ? "" : "s"}` : `${m.capacidade} lugares`}
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <p className="text-[13.5px] mt-2 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
                     Escolha uma mesa acima. Ela aparece destacada na planta ao lado.
+                  </p>
+                )}
+
+                {situacao.aviso && (
+                  <p
+                    role="status"
+                    className="text-[13px] font-medium mt-3 px-3 py-2 leading-snug"
+                    style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "8px" }}
+                  >
+                    {situacao.aviso}
+                  </p>
+                )}
+                {situacao.cobre && escolhidas.length > 1 && (
+                  <p className="text-[12.5px] mt-3 leading-snug" style={{ color: "var(--color-accent-dark)" }}>
+                    Tudo certo: as mesas acomodam o grupo de {pessoas}.
                   </p>
                 )}
               </div>
@@ -318,11 +370,11 @@ export default function EscolhaMesaDesktop({
             <div className="px-7 py-5 shrink-0">
               <button
                 onClick={onContinuar}
-                disabled={!mesaNumero}
+                disabled={!situacao.cobre}
                 className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "12px" }}
               >
-                Continuar
+                {escolhidas.length > 0 && !situacao.cobre ? "Escolha mais uma mesa" : "Continuar"}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>

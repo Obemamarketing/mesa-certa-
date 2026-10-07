@@ -13,6 +13,7 @@ import {
   DIAS,
   dataDoDia,
   formatarDataCurta,
+  situacaoDoGrupo,
   statusMesa,
   type DiaReserva,
   type Mesa,
@@ -53,9 +54,8 @@ export default function EscolhaMesaMobile({
   dia,
   horario,
   pessoas,
-  pessoasMin,
-  mesaNumero,
-  onSelecionar,
+  mesasNumeros,
+  onAlternar,
   onVoltar,
   onContinuar,
 }: {
@@ -63,16 +63,21 @@ export default function EscolhaMesaMobile({
   dia: DiaReserva;
   horario: string;
   pessoas: number;
-  pessoasMin?: number;
-  mesaNumero: string | null;
-  onSelecionar: (numero: string) => void;
+  /** Mesas escolhidas, na ordem em que foram escolhidas. */
+  mesasNumeros: string[];
+  /** Escolhe ou desmarca uma mesa. */
+  onAlternar: (numero: string) => void;
   onVoltar: () => void;
   onContinuar: () => void;
 }) {
   const [area, setArea] = useState<Mesa["zona"] | "todas">("todas");
   const { mesas } = useMesasConfig();
 
-  const mesaObj = mesas.find((m) => m.numero === mesaNumero) ?? null;
+  const escolhidas = mesasNumeros.map((n) => mesas.find((m) => m.numero === n)).filter((m): m is NonNullable<typeof m> => Boolean(m));
+  const situacao = situacaoDoGrupo(escolhidas, pessoas);
+  const maiorMesa = Math.max(...mesas.map((m) => m.capacidade));
+  const precisaDeVarias = pessoas > maiorMesa;
+  const mesaObj = escolhidas.length === 1 ? escolhidas[0] : null;
   const visiveis = area === "todas" ? mesas : mesas.filter((m) => m.zona === area);
   const rotuloLista = area === "todas" ? "Todas as mesas" : `Mesas do ${area.toLowerCase()}`;
   const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
@@ -140,8 +145,8 @@ export default function EscolhaMesaMobile({
           reservas={reservas}
           dia={dia}
           horario={horario}
-          mesaSelecionada={mesaNumero}
-          pessoasMin={pessoasMin}
+          mesaSelecionada={null}
+          mesasSelecionadas={mesasNumeros}
           mesas={mesas}
           statusSimplificado
           zoomavel
@@ -163,6 +168,14 @@ export default function EscolhaMesaMobile({
           <p className="text-[12.5px] mt-2.5 pt-2.5" style={{ color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)" }}>
             {diaLabel} · {horario} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
           </p>
+          {precisaDeVarias && (
+            <p
+              className="text-[12.5px] mt-2.5 px-3 py-2 leading-snug"
+              style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "10px" }}
+            >
+              Grupo maior que a maior mesa ({maiorMesa} lugares): escolha mais de uma.
+            </p>
+          )}
         </div>
 
         {/* filtros — rolam de lado quando não cabem */}
@@ -197,15 +210,18 @@ export default function EscolhaMesaMobile({
           </p>
           <div className="grid grid-cols-4 gap-2">
             {visiveis.map((m) => {
-              const status = statusMesa(reservas, dia, horario, m, pessoasMin);
-              const selecionada = mesaNumero === m.numero;
-              const indisponivel = status !== "livre" && !selecionada;
+              // sem filtro por capacidade: mesa pequena também serve, o grupo só junta mesas
+              const status = statusMesa(reservas, dia, horario, m);
+              const selecionada = mesasNumeros.includes(m.numero);
+              // grupo já acomodado: as outras mesas travam, pra ninguém reservar mesa a mais
+              const jaAcomodado = situacao.cobre && !selecionada;
+              const indisponivel = (status !== "livre" && !selecionada) || jaAcomodado;
               const estado: EstadoMesa = selecionada ? "selecionada" : status;
               return (
                 <button
                   key={m.numero}
                   disabled={indisponivel}
-                  onClick={() => onSelecionar(m.numero)}
+                  onClick={() => onAlternar(m.numero)}
                   aria-pressed={selecionada}
                   aria-label={`Mesa ${m.numero}, ${m.capacidade} lugares, ${m.zona}`}
                   className="relative flex flex-col items-center gap-0.5 py-2 px-1 border disabled:cursor-not-allowed"
@@ -252,17 +268,17 @@ export default function EscolhaMesaMobile({
           )}
         </div>
 
-        {/* mesa selecionada */}
+        {/* mesas selecionadas */}
         <div
           className="p-3.5"
           style={{
             borderRadius: "14px",
-            background: mesaObj ? "var(--color-surface)" : "transparent",
-            border: `1px ${mesaObj ? "solid" : "dashed"} var(--color-border)`,
+            background: escolhidas.length ? "var(--color-surface)" : "transparent",
+            border: `1px ${escolhidas.length ? "solid" : "dashed"} var(--color-border)`,
           }}
         >
           <p className="text-[10.5px] font-bold tracking-[0.14em] uppercase" style={{ color: "var(--color-text-muted)" }}>
-            Mesa selecionada
+            {escolhidas.length > 1 ? "Mesas selecionadas" : "Mesa selecionada"}
           </p>
           {mesaObj ? (
             <div className="flex items-center gap-3.5 mt-2.5">
@@ -279,9 +295,42 @@ export default function EscolhaMesaMobile({
                 </p>
               </div>
             </div>
+          ) : escolhidas.length > 1 ? (
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              {escolhidas.map((m) => {
+                const parte = situacao.partes.find((p) => p.numero === m.numero);
+                return (
+                  <span
+                    key={m.numero}
+                    className="inline-flex items-baseline gap-1.5 px-2.5 py-1"
+                    style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "10px" }}
+                  >
+                    <strong className="font-display text-[18px] leading-none" style={{ color: "var(--color-dark)" }}>{m.numero}</strong>
+                    <span className="text-[12px]" style={{ color: "var(--color-text-muted)" }}>
+                      {parte ? `${parte.pessoas} pessoa${parte.pessoas === 1 ? "" : "s"}` : `${m.capacidade} lugares`}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
           ) : (
             <p className="text-[13px] mt-1.5 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
               Escolha uma mesa acima. Ela aparece destacada na planta.
+            </p>
+          )}
+
+          {situacao.aviso && (
+            <p
+              role="status"
+              className="text-[12.5px] font-medium mt-3 px-3 py-2 leading-snug"
+              style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "8px" }}
+            >
+              {situacao.aviso}
+            </p>
+          )}
+          {situacao.cobre && escolhidas.length > 1 && (
+            <p className="text-[12px] mt-3 leading-snug" style={{ color: "var(--color-accent-dark)" }}>
+              Tudo certo: as mesas acomodam o grupo de {pessoas}.
             </p>
           )}
         </div>
@@ -294,11 +343,11 @@ export default function EscolhaMesaMobile({
       >
         <button
           onClick={onContinuar}
-          disabled={!mesaNumero}
+          disabled={!situacao.cobre}
           className="w-full py-3.5 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40"
           style={{ background: "var(--color-primary)", borderRadius: "12px" }}
         >
-          Continuar
+          {escolhidas.length > 0 && !situacao.cobre ? "Escolha mais uma mesa" : "Continuar"}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>

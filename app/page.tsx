@@ -11,7 +11,10 @@ import {
   TOLERANCIA_MINUTOS,
   criarReserva,
   dataDoDia,
+  cancelarReserva,
   formatarDataCurta,
+  listaDeMesas,
+  situacaoDoGrupo,
   useReservas,
   type DiaReserva,
   type Mesa,
@@ -21,6 +24,7 @@ import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
 import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
 import EscolhaMesaMobile from "./EscolhaMesaMobile";
+import MenuMobile from "./MenuMobile";
 import { useMesasConfig } from "@/lib/mesas";
 
 type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
@@ -44,53 +48,84 @@ export default function ReservasPage() {
   const [pessoas, setPessoas] = useState(2);
   const [pessoasCustom, setPessoasCustom] = useState(false);
   const horario = HORARIO_FIXO;
-  const [mesaNumero, setMesaNumero] = useState<string | null>(null);
+  // Mesas escolhidas, na ordem da escolha. Grupo que não cabe numa mesa só
+  // escolhe várias — o botão Continuar só libera quando a soma cobre todos.
+  const [mesasNumeros, setMesasNumeros] = useState<string[]>([]);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
   const [observacao, setObservacao] = useState("");
-  const [reservaFeita, setReservaFeita] = useState<Reserva | null>(null);
+  // uma reserva por mesa: um grupo de 7 em duas mesas gera duas reservas
+  const [reservasFeitas, setReservasFeitas] = useState<Reserva[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const mesaObj = mesas.find((m) => m.numero === mesaNumero);
-  // Grupo maior que a maior mesa não é filtrado por capacidade — fica a cargo
-  // da equipe juntar mesas.
-  const capacidadeMaxima = Math.max(...mesas.map((m) => m.capacidade));
-  const pessoasParaCapacidade = pessoas > capacidadeMaxima ? undefined : pessoas;
+  const escolhidas = mesasNumeros
+    .map((n) => mesas.find((m) => m.numero === n))
+    .filter((m): m is NonNullable<typeof m> => Boolean(m));
+  const situacao = situacaoDoGrupo(escolhidas, pessoas);
+  const zonasEscolhidas = [...new Set(escolhidas.map((m) => rotuloZona(m.zona)))].join(" · ");
+  const tituloMesas = escolhidas.length > 1 ? `Mesas ${listaDeMesas(escolhidas.map((m) => m.numero))}` : `Mesa ${escolhidas[0]?.numero ?? ""}`;
+  const lugaresEscolhidos = escolhidas.reduce((soma, m) => soma + m.capacidade, 0);
+
+  // Escolhe ou desmarca. Com o grupo já acomodado não entra mesa nova: ninguém
+  // reserva mesa a mais do que precisa.
+  function alternarMesa(numero: string) {
+    setMesasNumeros((atual) => {
+      if (atual.includes(numero)) return atual.filter((n) => n !== numero);
+      const atuais = atual
+        .map((n) => mesas.find((m) => m.numero === n))
+        .filter((m): m is NonNullable<typeof m> => Boolean(m));
+      if (situacaoDoGrupo(atuais, pessoas).cobre) return atual;
+      return [...atual, numero];
+    });
+  }
 
   async function confirmar() {
-    if (!mesaNumero || !nome.trim() || !telefone.trim() || enviando) return;
+    if (!situacao.cobre || !nome.trim() || !telefone.trim() || enviando) return;
     setEnviando(true);
     setErro(null);
-    const { reserva, erro: mensagemErro } = await criarReserva({
-      dia,
-      horario,
-      mesaNumero,
-      pessoas,
-      nome: nome.trim(),
-      telefone: telefone.trim(),
-      email: email.trim() || undefined,
-      observacao: observacao.trim() || undefined,
-    });
-    setEnviando(false);
-    if (!reserva) {
-      setErro(mensagemErro ?? "Não foi possível confirmar a reserva.");
-      return;
+
+    // Uma reserva por mesa. Se alguma falhar (ex.: alguém levou a mesa no
+    // meio-tempo), desfaz as que já foram gravadas: o cliente nunca fica com
+    // só parte das mesas do grupo.
+    const criadas: Reserva[] = [];
+    for (const parte of situacao.partes) {
+      const { reserva, erro: mensagemErro } = await criarReserva({
+        dia,
+        horario,
+        mesaNumero: parte.numero,
+        pessoas: parte.pessoas,
+        nome: nome.trim(),
+        telefone: telefone.trim(),
+        email: email.trim() || undefined,
+        observacao: observacao.trim() || undefined,
+      });
+      if (!reserva) {
+        for (const feita of criadas) await cancelarReserva(feita.id);
+        setEnviando(false);
+        setErro(
+          (mensagemErro ?? "Não foi possível confirmar a reserva.") +
+            (criadas.length > 0 ? " Nenhuma das mesas foi reservada — escolha de novo." : ""),
+        );
+        return;
+      }
+      criadas.push(reserva);
     }
-    setReservaFeita(reserva);
+    setEnviando(false);
+    setReservasFeitas(criadas);
     setEtapa("confirmada");
   }
 
   function reiniciar() {
     setEtapa("inicio");
     setPessoasCustom(false);
-    setMesaNumero(null);
+    setMesasNumeros([]);
     setNome("");
     setTelefone("");
     setEmail("");
     setObservacao("");
-    setReservaFeita(null);
+    setReservasFeitas([]);
     setErro(null);
   }
 
@@ -98,9 +133,9 @@ export default function ReservasPage() {
     return (
       <TelaInicio
         dia={dia}
-        setDia={setDia}
+        setDia={(d) => { setDia(d); setMesasNumeros([]); }}
         pessoas={pessoas}
-        setPessoas={setPessoas}
+        setPessoas={(n) => { setPessoas(n); setMesasNumeros([]); }}
         pessoasCustom={pessoasCustom}
         setPessoasCustom={setPessoasCustom}
         onBuscar={() => setEtapa("horario")}
@@ -219,9 +254,8 @@ export default function ReservasPage() {
             dia={dia}
             horario={horario}
             pessoas={pessoas}
-            pessoasMin={pessoasParaCapacidade}
-            mesaNumero={mesaNumero}
-            onSelecionar={setMesaNumero}
+            mesasNumeros={mesasNumeros}
+            onAlternar={alternarMesa}
             onVoltar={() => setEtapa("horario")}
             onContinuar={() => setEtapa("dados")}
           />
@@ -234,9 +268,8 @@ export default function ReservasPage() {
             dia={dia}
             horario={horario}
             pessoas={pessoas}
-            pessoasMin={pessoasParaCapacidade}
-            mesaNumero={mesaNumero}
-            onSelecionar={setMesaNumero}
+            mesasNumeros={mesasNumeros}
+            onAlternar={alternarMesa}
             onVoltar={() => setEtapa("horario")}
             onContinuar={() => setEtapa("dados")}
           />
@@ -376,11 +409,11 @@ export default function ReservasPage() {
                   <LinhaResumoDesktop icon={ICONE_CALENDARIO}>{diaLabelCompleto}</LinhaResumoDesktop>
                   <LinhaResumoDesktop icon={ICONE_RELOGIO}>{horario}</LinhaResumoDesktop>
                   <LinhaResumoDesktop icon={ICONE_GRUPO}>{pessoas} pessoa{pessoas === 1 ? "" : "s"}</LinhaResumoDesktop>
-                  {mesaObj && (
+                  {escolhidas.length > 0 && (
                     <LinhaResumoDesktop icon={ICONE_MESA} ultima>
-                      <span>Mesa {mesaObj.numero}</span>
+                      <span>{tituloMesas}</span>
                       <span className="block text-[13px] mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-                        {mesaObj.capacidade} lugares · {rotuloZona(mesaObj.zona)}
+                        {lugaresEscolhidos} lugares · {zonasEscolhidas}
                       </span>
                     </LinhaResumoDesktop>
                   )}
@@ -417,7 +450,7 @@ export default function ReservasPage() {
 
       <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
         {/* TELA 5 — REVISAR */}
-        {etapa === "revisar" && horario && mesaObj && (
+        {etapa === "revisar" && horario && escolhidas.length > 0 && (
           <div className="flex flex-col gap-5 pt-4 sm:pt-6">
             <TopoEtapa onVoltar={() => setEtapa("dados")} etapaNumero={4} />
             <h1 className="font-display text-2xl">Revise sua reserva</h1>
@@ -433,8 +466,11 @@ export default function ReservasPage() {
                 <Linha label="Data" valor={`${DIAS.find((d) => d.chave === dia)?.label}, ${formatarDataCurta(dataDoDia(dia))}`} />
                 <Linha label="Horário" valor={horario} />
                 <Linha label="Pessoas" valor={`${pessoas} pessoa${pessoas === 1 ? "" : "s"}`} />
-                <Linha label="Mesa" valor={`Mesa ${mesaObj.numero}`} />
-                <Linha label="Área" valor={rotuloZona(mesaObj.zona)} />
+                <Linha label={escolhidas.length > 1 ? "Mesas" : "Mesa"} valor={tituloMesas.replace(/^Mesas? /, "")} />
+                {escolhidas.length > 1 && (
+                  <Linha label="Divisão" valor={situacao.partes.map((p) => `${p.numero}: ${p.pessoas}`).join(" · ")} />
+                )}
+                <Linha label="Área" valor={zonasEscolhidas} />
                 <div style={{ borderTop: "1px solid var(--color-border)" }} className="pt-2.5 mt-1 flex flex-col gap-2.5">
                   <Linha label="Nome" valor={nome} />
                   <Linha label="WhatsApp" valor={telefone} />
@@ -463,25 +499,28 @@ export default function ReservasPage() {
         )}
 
         {/* TELA 6 — CONFIRMADA */}
-        {etapa === "confirmada" && reservaFeita && mesaObj && (
+        {etapa === "confirmada" && reservasFeitas.length > 0 && (
           <div className="flex-1 flex flex-col items-center text-center gap-4 pt-10">
             <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "var(--color-accent)" }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
             </div>
             <h1 className="font-display text-2xl">Reserva confirmada!</h1>
-            <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Sua mesa está garantida no {reservaBrand.restauranteAtual}.</p>
+            <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>{reservasFeitas.length > 1 ? "Suas mesas estão garantidas" : "Sua mesa está garantida"} no {reservaBrand.restauranteAtual}.</p>
 
             <div className="w-full border p-5 flex flex-col gap-2.5 text-left" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
-              <Linha label="Data" valor={`${DIAS.find((d) => d.chave === reservaFeita.dia)?.label}, ${formatarDataCurta(dataDoDia(reservaFeita.dia))}`} />
-              <Linha label="Horário" valor={reservaFeita.horario} />
-              <Linha label="Pessoas" valor={`${reservaFeita.pessoas} pessoa${reservaFeita.pessoas === 1 ? "" : "s"}`} />
-              <Linha label="Mesa" valor={`Mesa ${reservaFeita.mesaNumero}`} />
-              <Linha label="Área" valor={rotuloZona(mesaObj.zona)} />
+              <Linha label="Data" valor={`${DIAS.find((d) => d.chave === reservasFeitas[0].dia)?.label}, ${formatarDataCurta(dataDoDia(reservasFeitas[0].dia))}`} />
+              <Linha label="Horário" valor={reservasFeitas[0].horario} />
+              <Linha label="Pessoas" valor={`${reservasFeitas.reduce((s, r) => s + r.pessoas, 0)} pessoa${reservasFeitas.reduce((s, r) => s + r.pessoas, 0) === 1 ? "" : "s"}`} />
+              <Linha label={reservasFeitas.length > 1 ? "Mesas" : "Mesa"} valor={listaDeMesas(reservasFeitas.map((r) => r.mesaNumero))} />
+              {reservasFeitas.length > 1 && (
+                <Linha label="Divisão" valor={reservasFeitas.map((r) => `${r.mesaNumero}: ${r.pessoas}`).join(" · ")} />
+              )}
+              <Linha label="Área" valor={[...new Set(reservasFeitas.map((r) => { const m = mesas.find((x) => x.numero === r.mesaNumero); return m ? rotuloZona(m.zona) : ""; }).filter(Boolean))].join(" · ")} />
             </div>
 
             <div className="w-full flex flex-col gap-2.5 mt-2">
               <button
-                onClick={() => baixarIcsDaReserva(reservaFeita)}
+                onClick={() => baixarIcsDaReserva(reservasFeitas[0], { mesas: reservasFeitas.map((r) => r.mesaNumero), pessoas: reservasFeitas.reduce((s, r) => s + r.pessoas, 0) })}
                 className="py-3 text-sm font-semibold border"
                 style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-dark)" }}
               >
@@ -740,6 +779,24 @@ function TelaInicio({
   setPessoasCustom: (b: boolean) => void;
   onBuscar: () => void;
 }) {
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  // "Reservar uma mesa" no menu: rola até o cartão de reserva e o destaca por
+  // um instante — a página é curta e o cartão muitas vezes já está na tela, aí
+  // só rolar não mostraria nada.
+  function irParaReserva() {
+    const area = document.getElementById("reservar-mobile");
+    if (!area) return;
+    area.scrollIntoView({ behavior: "smooth", block: "center" });
+    const cartao = area.firstElementChild as HTMLElement | null;
+    if (!cartao) return;
+    const sombraOriginal = cartao.style.boxShadow;
+    cartao.style.transition = "box-shadow 250ms";
+    cartao.style.boxShadow = "0 0 0 3px var(--color-primary), " + sombraOriginal;
+    setTimeout(() => {
+      cartao.style.boxShadow = sombraOriginal;
+    }, 1400);
+  }
   const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
   const diaLabelCompacto = formatarDataCurta(dataDoDia(dia));
 
@@ -751,6 +808,11 @@ function TelaInicio({
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
       {/* ===================== MOBILE (< lg) ===================== */}
       <div className="lg:hidden flex flex-col">
+        <MenuMobile
+          aberto={menuAberto}
+          aoFechar={() => setMenuAberto(false)}
+          aoReservar={irParaReserva}
+        />
         <section className="relative w-full h-[640px] overflow-hidden">
           <Image src="/hero-zeplin.webp" alt={`Interior do ${reservaBrand.restauranteAtual}`} fill priority className="object-cover" />
           <div
@@ -775,7 +837,11 @@ function TelaInicio({
                 <span className="scale-[0.85]">{ICONE_CALENDARIO}</span>
               </Link>
               <button
-                aria-label="Menu"
+                type="button"
+                aria-label="Abrir menu"
+                aria-haspopup="dialog"
+                aria-expanded={menuAberto}
+                onClick={() => setMenuAberto(true)}
                 className="w-9 h-9 flex items-center justify-center text-white shrink-0"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
@@ -797,7 +863,7 @@ function TelaInicio({
           </div>
         </section>
 
-        <div className="relative z-20 -mt-9 px-4">
+        <div id="reservar-mobile" className="relative z-20 -mt-9 px-4 scroll-mt-6">
           <div
             className="flex flex-col divide-y overflow-hidden"
             style={{ background: "var(--color-surface)", borderRadius: "28px", boxShadow: "0 18px 40px -12px rgba(42,23,18,0.35)" }}

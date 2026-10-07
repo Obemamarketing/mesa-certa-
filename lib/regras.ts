@@ -85,3 +85,58 @@ export function horaLimiteDaTolerancia(horario: string): string {
 export function codigoDaReserva(id: string): string {
   return id.replace(/-/g, "").slice(0, 6).toUpperCase();
 }
+
+// ---------------------------------------------------------------------------
+// Grupos que precisam de mais de uma mesa
+// ---------------------------------------------------------------------------
+// O cliente escolhe quantas mesas quiser, mas só avança quando os lugares das
+// mesas escolhidas cobrem todas as pessoas. Cada mesa vira uma reserva própria
+// (uma linha em "reservas"), com as pessoas divididas entre elas.
+
+export type MesaDoGrupo = { numero: string; capacidade: number };
+
+export function lugaresDasMesas(escolhidas: MesaDoGrupo[]): number {
+  return escolhidas.reduce((soma, m) => soma + m.capacidade, 0);
+}
+
+// Quantos lugares ainda faltam pra acomodar todo mundo (0 = já cobre).
+export function lugaresQueFaltam(escolhidas: MesaDoGrupo[], pessoas: number): number {
+  return Math.max(0, pessoas - lugaresDasMesas(escolhidas));
+}
+
+// Divide as pessoas entre as mesas, na ordem em que foram escolhidas, enchendo
+// cada uma até a capacidade: 7 pessoas em mesas de 4 e 4 viram 4 + 3. Mesa que
+// ficaria com 0 pessoas fica de fora — nunca se reserva mesa vazia.
+export function distribuirPessoas(escolhidas: MesaDoGrupo[], pessoas: number): { numero: string; pessoas: number }[] {
+  let restantes = pessoas;
+  const partes: { numero: string; pessoas: number }[] = [];
+  for (const mesa of escolhidas) {
+    if (restantes <= 0) break;
+    const aqui = Math.min(mesa.capacidade, restantes);
+    partes.push({ numero: mesa.numero, pessoas: aqui });
+    restantes -= aqui;
+  }
+  return partes;
+}
+
+// "05", "05 e 06", "05, 06 e 07"
+export function listaDeMesas(numeros: string[]): string {
+  if (numeros.length <= 1) return numeros.join("");
+  return `${numeros.slice(0, -1).join(", ")} e ${numeros[numeros.length - 1]}`;
+}
+
+// Situação do grupo diante das mesas escolhidas: se já cabe todo mundo, quanto
+// falta e a mensagem que a tela mostra enquanto o botão Continuar está travado.
+export function situacaoDoGrupo(escolhidas: MesaDoGrupo[], pessoas: number) {
+  const faltam = lugaresQueFaltam(escolhidas, pessoas);
+  const cobre = escolhidas.length > 0 && faltam === 0;
+  const partes = distribuirPessoas(escolhidas, pessoas);
+
+  let aviso: string | null = null;
+  if (escolhidas.length > 0 && faltam > 0) {
+    aviso =
+      `Faltam ${faltam} lugar${faltam === 1 ? "" : "es"} para acomodar ${pessoas === 1 ? "a pessoa" : `as ${pessoas} pessoas`}. ` +
+      `Escolha mais uma mesa.`;
+  }
+  return { faltam, cobre, partes, aviso };
+}

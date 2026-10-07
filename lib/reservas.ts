@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, mesas, minutosDoHorario, type Mesa } from "./regras";
+import { HORARIO_FIXO, TOLERANCIA_MINUTOS, mesas, minutosDoHorario, type Mesa } from "./regras";
 
-export { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, horaLimiteDaTolerancia, mesas, minutosDoHorario } from "./regras";
+export { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, distribuirPessoas, horaLimiteDaTolerancia, listaDeMesas, lugaresDasMesas, lugaresQueFaltam, mesas, minutosDoHorario, situacaoDoGrupo } from "./regras";
+export type { MesaDoGrupo } from "./regras";
 export type { FormatoMesa, Mesa, ZonaMesa } from "./regras";
 
 // "Hoje" fixo pro protótipo — terça-feira, 30 de setembro de 2026.
@@ -152,19 +153,24 @@ export async function desfazerCheckin(id: string): Promise<void> {
   if (error) console.error("Erro ao desfazer check-in:", error.message);
 }
 
-// Consulta pública: por telefone (mais comum) ou pelo código curto. Busca
-// tudo e filtra no cliente — base pequena de protótipo, evita depender de
-// como o telefone foi formatado na hora de reservar.
+// minúsculas e sem acento: "José" e "jose" são a mesma coisa na busca por nome
+function semAcento(texto: string): string {
+  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+export const MINIMO_LETRAS_NA_BUSCA = 3;
+
+// Consulta pública pelo NOME de quem reservou. Cada palavra digitada precisa
+// aparecer no nome (em qualquer ordem), então "maria silva" acha "Maria Souza
+// Silva". Busca tudo e filtra no cliente — base pequena de protótipo.
 export async function buscarReservaDoCliente(termo: string): Promise<Reserva[]> {
-  const termoLimpo = termo.trim();
-  if (!termoLimpo) return [];
+  const palavras = semAcento(termo).split(/\s+/).filter(Boolean);
+  if (palavras.join("").length < MINIMO_LETRAS_NA_BUSCA) return [];
 
-  const somenteDigitos = termoLimpo.replace(/\D/g, "");
   const todas = await buscarReservas();
-
   const encontradas = todas.filter((r) => {
-    if (somenteDigitos.length >= 4 && r.telefone.replace(/\D/g, "").includes(somenteDigitos)) return true;
-    return codigoDaReserva(r.id).toLowerCase() === termoLimpo.toLowerCase();
+    const nome = semAcento(r.nome);
+    return palavras.every((p) => nome.includes(p));
   });
 
   return encontradas.sort((a, b) => b.criadaEm - a.criadaEm);
