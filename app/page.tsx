@@ -12,6 +12,7 @@ import {
   criarReserva,
   dataDoDia,
   cancelarReserva,
+  isoDaData,
   formatarDataCurta,
   listaDeMesas,
   situacaoDoGrupo,
@@ -25,6 +26,7 @@ import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
 import EscolhaMesaMobile from "./EscolhaMesaMobile";
 import MenuMobile from "./MenuMobile";
+import { useDiasFechados, type DiaFechado } from "@/lib/diasFechados";
 import { useMesasConfig } from "@/lib/mesas";
 
 type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
@@ -43,6 +45,11 @@ function rotuloZona(zona: Mesa["zona"]): string {
 export default function ReservasPage() {
   const { reservas } = useReservas();
   const { mesas } = useMesasConfig();
+  const { fechados } = useDiasFechados();
+  // dia da semana → registro de fechamento da PRÓXIMA data desse dia (ou nada)
+  const fechadosPorDia = Object.fromEntries(
+    DIAS.map((d) => [d.chave, fechados.get(isoDaData(dataDoDia(d.chave)))]),
+  ) as Record<DiaReserva, DiaFechado | undefined>;
   const [etapa, setEtapa] = useState<Etapa>("inicio");
   const [dia, setDia] = useState<DiaReserva>("sexta");
   const [pessoas, setPessoas] = useState(2);
@@ -138,6 +145,7 @@ export default function ReservasPage() {
         setPessoas={(n) => { setPessoas(n); setMesasNumeros([]); }}
         pessoasCustom={pessoasCustom}
         setPessoasCustom={setPessoasCustom}
+        fechadosPorDia={fechadosPorDia}
         onBuscar={() => setEtapa("horario")}
       />
     );
@@ -666,10 +674,10 @@ function CampoReserva({
       className={`relative flex items-center flex-1 min-w-0 ${compacto ? "gap-2 px-3.5 py-4" : "gap-3 px-4 py-3 sm:px-5 sm:py-2.5"}`}
       style={divisor ? { borderLeft: "1px solid var(--color-border)" } : undefined}
     >
-      <span className={`shrink-0 ${compacto ? "scale-[0.82]" : ""}`} style={{ color: "var(--color-primary)" }}>{icon}</span>
+      <span className={`shrink-0 ${compacto ? "scale-[0.94]" : ""}`} style={{ color: "var(--color-primary)" }}>{icon}</span>
       <div className="flex-1 min-w-0 flex flex-col leading-tight">
-        <span className={compacto ? "text-[10.5px]" : "text-[11px]"} style={{ color: "var(--color-text-muted)" }}>{label}</span>
-        <span className={`font-semibold truncate ${compacto ? "text-[13px]" : "text-[13.5px]"}`} style={{ color: "var(--color-dark)" }}>{displayValue}</span>
+        <span className={compacto ? "text-[12px]" : "text-[12.5px]"} style={{ color: "var(--color-text-muted)" }}>{label}</span>
+        <span className={`font-semibold truncate ${compacto ? "text-[15px]" : "text-[15.5px]"}`} style={{ color: "var(--color-dark)" }}>{displayValue}</span>
       </div>
       {mostrarSeta && (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2.25" className="shrink-0">
@@ -718,15 +726,15 @@ function CampoPessoas({
         className={`relative flex items-center flex-1 min-w-0 ${compacto ? "gap-2 px-3.5 py-4" : "gap-3 px-4 py-3 sm:px-5 sm:py-2.5"}`}
         style={divisor ? { borderLeft: "1px solid var(--color-border)" } : undefined}
       >
-        <span className={`shrink-0 ${compacto ? "scale-[0.82]" : ""}`} style={{ color: "var(--color-primary)" }}>{ICONE_PESSOA}</span>
+        <span className={`shrink-0 ${compacto ? "scale-[0.94]" : ""}`} style={{ color: "var(--color-primary)" }}>{ICONE_PESSOA}</span>
         <div className="flex-1 min-w-0 flex flex-col leading-tight">
-          <span className={compacto ? "text-[10.5px]" : "text-[11px]"} style={{ color: "var(--color-text-muted)" }}>Pessoas</span>
+          <span className={compacto ? "text-[12px]" : "text-[12.5px]"} style={{ color: "var(--color-text-muted)" }}>Pessoas</span>
           <input
             type="number"
             min={11}
             value={pessoas}
             onChange={(e) => setPessoas(Math.max(11, Number(e.target.value) || 11))}
-            className={`font-semibold bg-transparent outline-none w-full ${compacto ? "text-[13px]" : "text-[13.5px]"}`}
+            className={`font-semibold bg-transparent outline-none w-full ${compacto ? "text-[15px]" : "text-[15.5px]"}`}
             style={{ color: "var(--color-dark)" }}
           />
         </div>
@@ -769,6 +777,7 @@ function TelaInicio({
   setPessoas,
   pessoasCustom,
   setPessoasCustom,
+  fechadosPorDia,
   onBuscar,
 }: {
   dia: DiaReserva;
@@ -777,6 +786,8 @@ function TelaInicio({
   setPessoas: (n: number) => void;
   pessoasCustom: boolean;
   setPessoasCustom: (b: boolean) => void;
+  /** Dias em que o restaurante está fechado (marcados pelo administrador). */
+  fechadosPorDia: Record<DiaReserva, DiaFechado | undefined>;
   onBuscar: () => void;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
@@ -800,9 +811,26 @@ function TelaInicio({
   const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
   const diaLabelCompacto = formatarDataCurta(dataDoDia(dia));
 
+  // Dia fechado continua na lista (pra pessoa entender por que não dá), mas
+  // não pode ser escolhido.
   const opcoesDia = DIAS.map((d) => (
-    <option key={d.chave} value={d.chave}>{d.label.split("-")[0]}, {formatarDataCurta(dataDoDia(d.chave))}</option>
+    <option key={d.chave} value={d.chave} disabled={Boolean(fechadosPorDia[d.chave])}>
+      {d.label.split("-")[0]}, {formatarDataCurta(dataDoDia(d.chave))}
+      {fechadosPorDia[d.chave] ? " — fechado" : ""}
+    </option>
   ));
+
+  const fechadoNoDiaEscolhido = fechadosPorDia[dia];
+  const avisoFechado = fechadoNoDiaEscolhido ? (
+    <p
+      role="alert"
+      className="text-[13.5px] font-semibold leading-snug px-3.5 py-3"
+      style={{ background: "#FBE3E0", border: "1.5px solid var(--color-error)", color: "var(--color-error)", borderRadius: "12px" }}
+    >
+      Fechado em {diaLabel}
+      {fechadoNoDiaEscolhido.motivo ? ` — ${fechadoNoDiaEscolhido.motivo}` : ""}. Escolha outro dia para reservar.
+    </p>
+  ) : null;
 
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
@@ -872,10 +900,12 @@ function TelaInicio({
               {opcoesDia}
             </CampoReserva>
             <CampoPessoas pessoas={pessoas} setPessoas={setPessoas} custom={pessoasCustom} setCustom={setPessoasCustom} mostrarSeta />
-            <div className="p-3">
+            <div className="p-3 flex flex-col gap-2.5">
+              {avisoFechado}
               <button
                 onClick={onBuscar}
-                className="w-full py-3.5 text-[14.5px] font-semibold text-white flex items-center justify-center gap-2"
+                disabled={Boolean(fechadoNoDiaEscolhido)}
+                className="w-full py-3.5 text-[14.5px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "999px" }}
               >
                 Buscar mesas
@@ -948,10 +978,12 @@ function TelaInicio({
                   <CampoPessoas compacto divisor pessoas={pessoas} setPessoas={setPessoas} custom={pessoasCustom} setCustom={setPessoasCustom} />
                 </div>
 
-                <div className="p-4">
+                <div className="p-4 flex flex-col gap-3">
+                  {avisoFechado}
                   <button
                     onClick={onBuscar}
-                    className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2"
+                    disabled={Boolean(fechadoNoDiaEscolhido)}
+                    className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ background: "var(--color-primary)", borderRadius: "12px" }}
                   >
                     Buscar mesas

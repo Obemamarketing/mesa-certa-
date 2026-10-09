@@ -25,6 +25,7 @@ import {
 import { useMesasConfig } from "@/lib/mesas";
 import PlantaRestaurante, { LegendaPlanta } from "./PlantaRestaurante";
 import { MesaMiniatura, type EstadoMesa } from "./MesaDesenho";
+import AvisoFalta from "./AvisoFalta";
 
 // Só as 3 áreas que existem de verdade no sistema (lib/regras.ts).
 const AREAS: { chave: Mesa["zona"] | "todas"; label: string }[] = [
@@ -334,13 +335,9 @@ export default function EscolhaMesaDesktop({
               )}
 
               {situacao.aviso && (
-                <p
-                  role="status"
-                  className="text-[13px] font-medium mt-3 px-3 py-2 leading-snug"
-                  style={{ background: "var(--color-secondary-soft)", color: "var(--color-secondary-dark)", borderRadius: "8px" }}
-                >
-                  {situacao.aviso}
-                </p>
+                <div className="mt-3">
+                  <AvisoFalta faltam={situacao.faltam} pessoas={pessoas} />
+                </div>
               )}
               {situacao.cobre && escolhidas.length > 1 && (
                 <p className="text-[12.5px] mt-2 leading-snug" style={{ color: "var(--color-accent-dark)" }}>
@@ -354,7 +351,7 @@ export default function EscolhaMesaDesktop({
                 className="w-full mt-3.5 py-3.5 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "12px" }}
               >
-                {escolhidas.length > 0 && !situacao.cobre ? "Escolha mais uma mesa" : "Continuar"}
+                {escolhidas.length > 0 && !situacao.cobre ? `Falta${situacao.faltam === 1 ? "" : "m"} ${situacao.faltam} lugar${situacao.faltam === 1 ? "" : "es"}` : "Continuar"}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>

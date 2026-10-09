@@ -23,6 +23,15 @@ const ITENS = [
     ),
   },
   {
+    href: "/admin/calendario",
+    label: "Calendário",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+        <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18M10 14l4 4M14 14l-4 4" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin/clientes",
     label: "Clientes",
     icon: (

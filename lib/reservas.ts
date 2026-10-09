@@ -8,8 +8,24 @@ export { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, distribuirPessoas, h
 export type { MesaDoGrupo } from "./regras";
 export type { FormatoMesa, Mesa, ZonaMesa } from "./regras";
 
-// "Hoje" fixo pro protótipo — terça-feira, 30 de setembro de 2026.
-export const dataHoje = new Date(2026, 8, 30);
+// "Hoje" de verdade, no fuso de São Paulo (é o fuso do restaurante e o que o
+// banco usa pra calcular a data da reserva). Devolve meia-noite local do dia.
+export function dataHoje(): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const [ano, mes, dia] = ymd.split("-").map(Number);
+  return new Date(ano, mes - 1, dia);
+}
+
+// "2026-10-16": formato que o banco guarda e que dias_fechados usa como chave.
+export function isoDaData(data: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${data.getFullYear()}-${p(data.getMonth() + 1)}-${p(data.getDate())}`;
+}
 
 export type DiaReserva = "sexta" | "sabado" | "domingo";
 
@@ -22,7 +38,8 @@ export const DIAS: { chave: DiaReserva; label: string; diaSemana: number }[] = [
 export const horarios = [HORARIO_FIXO];
 
 function proximaData(diaSemanaAlvo: number): Date {
-  const base = new Date(dataHoje);
+  const base = dataHoje();
+  // mesma regra do banco: se hoje já é esse dia da semana, vale o da semana que vem
   const diff = (diaSemanaAlvo - base.getDay() + 7) % 7 || 7;
   base.setDate(base.getDate() + diff);
   return base;
@@ -126,6 +143,9 @@ export async function criarReserva(
     .single();
 
   if (error) {
+    if (/RESTAURANTE_FECHADO/.test(error.message)) {
+      return { reserva: null, erro: "O restaurante estará fechado nesta data. Escolha outro dia." };
+    }
     if (error.code === "23505") {
       return { reserva: null, erro: "Essa mesa acabou de ser reservada por outra pessoa. Escolha outra." };
     }
