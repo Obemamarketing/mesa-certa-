@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { reservaBrand } from "@/lib/reservaBrand";
+import { DIAS, relogioSaoPaulo } from "@/lib/reservas";
+import { useDiasFechados } from "@/lib/diasFechados";
+import { useAgora } from "@/lib/relogio";
 
 const ITENS = [
   {
@@ -72,13 +74,22 @@ const ITENS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [agora, setAgora] = useState<Date | null>(null);
+  const agora = useAgora(30000);
+  const { fechados } = useDiasFechados();
 
-  useEffect(() => {
-    setAgora(new Date());
-    const id = setInterval(() => setAgora(new Date()), 30000);
-    return () => clearInterval(id);
-  }, []);
+  // O cartão dizia "Restaurante aberto" o tempo todo, até na segunda-feira e
+  // em dia marcado como fechado no calendário. Agora responde pelo relógio de
+  // São Paulo, pelos dias de funcionamento e pelo calendário.
+  const relogio = agora ? relogioSaoPaulo(agora) : null;
+  const diaFechado = relogio ? fechados.get(relogio.iso) : undefined;
+  const diaDeFuncionamento = relogio ? DIAS.some((d) => d.diaSemana === relogio.diaSemana) : true;
+  const estado = !relogio
+    ? { texto: " ", cor: "var(--color-border)" }
+    : diaFechado
+    ? { texto: "Fechado hoje", cor: "#e08a7a" }
+    : !diaDeFuncionamento
+    ? { texto: "Fora do dia de funcionamento", cor: "rgba(255,255,255,0.45)" }
+    : { texto: "Dia de funcionamento", cor: "var(--color-secondary)" };
 
   return (
     <aside
@@ -117,14 +128,17 @@ export default function Sidebar() {
 
       <div className="flex flex-col gap-1.5 px-3.5 py-3.5" style={{ borderRadius: "var(--radius-sm)", background: "rgba(0,0,0,0.18)" }}>
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--color-secondary)" }} />
-          <span className="text-[13.5px] font-semibold text-white">Restaurante aberto</span>
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: estado.cor }} />
+          <span className="text-[13.5px] font-semibold text-white">{estado.texto}</span>
         </div>
-        <span className="text-[12px] capitalize" style={{ color: "rgba(255,255,255,0.65)" }}>
-          {agora ? agora.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }) : " "}
+        {diaFechado?.motivo && (
+          <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.65)" }}>{diaFechado.motivo}</span>
+        )}
+        <span className="text-[12px] first-letter:uppercase" style={{ color: "rgba(255,255,255,0.65)" }}>
+          {agora ? agora.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", timeZone: "America/Sao_Paulo" }) : " "}
         </span>
         <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.65)" }}>
-          {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : " "}
+          {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : " "}
         </span>
       </div>
     </aside>

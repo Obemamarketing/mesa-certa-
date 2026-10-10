@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ROTULO_STATUS_CHEGADA, statusChegada, type Mesa, type Reserva } from "@/lib/reservas";
+import { ROTULO_STATUS_CHEGADA, rotuloDaReserva, statusChegada, type Mesa, type Reserva, type ResultadoAcao } from "@/lib/reservas";
 import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
 import StatusBadge from "./StatusBadge";
 
@@ -41,12 +41,30 @@ export default function DetalheMesaConteudo({
   reservaFoco: Reserva | undefined;
   horarioPlanta: string;
   minutosAgora: number | null;
-  onCancelar: () => void;
+  onCancelar: () => Promise<ResultadoAcao> | void;
   onNovaReserva: () => void;
-  onCheckin: () => void;
-  onDesfazerCheckin: () => void;
+  onCheckin: () => Promise<ResultadoAcao> | void;
+  onDesfazerCheckin: () => Promise<ResultadoAcao> | void;
 }) {
   const [alertaDispensado, setAlertaDispensado] = useState(false);
+  // cancelar libera a mesa na hora e avisa o cliente de nada: um clique sem
+  // querer não pode derrubar a reserva. Guarda QUAL reserva está esperando o
+  // "sim", pra a pergunta não passar de uma mesa para a outra.
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const confirmando = Boolean(reservaFoco) && confirmandoId === reservaFoco?.id;
+
+  async function executar(acao: () => Promise<ResultadoAcao> | void) {
+    if (ocupado) return;
+    setOcupado(true);
+    setErroAcao(null);
+    const r = await acao();
+    setOcupado(false);
+    if (r && r.erro) setErroAcao(r.erro);
+    else setConfirmandoId(null);
+  }
+
   const chegada = reservaFoco ? statusChegada(reservaFoco, minutosAgora) : null;
   const corTexto = chegada === "chegou" ? "var(--color-accent-dark)" : chegada === "tolerancia" ? "var(--color-secondary-dark)" : "var(--color-error)";
   const corFundo = chegada === "chegou" ? "var(--color-accent-soft)" : chegada === "tolerancia" ? "var(--color-secondary-soft)" : "var(--color-error-soft)";
@@ -71,7 +89,7 @@ export default function DetalheMesaConteudo({
           <div className="flex flex-col gap-1.5 text-[13px]" style={{ color: "var(--color-dark)" }}>
             <span className="font-semibold">{reservaFoco.nome}</span>
             <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_TELEFONE}{reservaFoco.telefone}</span>
-            <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_RELOGIO}{reservaFoco.horario} · {reservaFoco.pessoas} pessoa{reservaFoco.pessoas === 1 ? "" : "s"}</span>
+            <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_RELOGIO}{rotuloDaReserva(reservaFoco)} · {reservaFoco.horario} · {reservaFoco.pessoas} pessoa{reservaFoco.pessoas === 1 ? "" : "s"}</span>
             {reservaFoco.observacao && (
               <span className="flex items-start gap-1.5" style={{ color: "var(--color-dark)" }}>
                 <span className="shrink-0 mt-0.5">{ICONE_NOTA}</span>
@@ -92,10 +110,10 @@ export default function DetalheMesaConteudo({
                 </span>
               </div>
 
-              {chegada === "atrasado" && !alertaDispensado && (
+              {chegada === "atrasado" && !alertaDispensado && !confirmando && (
                 <div className="flex gap-2">
                   <button
-                    onClick={onCancelar}
+                    onClick={() => setConfirmandoId(reservaFoco.id)}
                     className="flex-1 text-[12px] font-semibold py-2 text-white"
                     style={{ background: "var(--color-error)", borderRadius: "var(--radius-sm)" }}
                   >
@@ -113,20 +131,52 @@ export default function DetalheMesaConteudo({
             </div>
           )}
 
-          {!reservaFoco.cancelada && (
+          {erroAcao && (
+            <p role="alert" className="text-[12.5px] font-semibold" style={{ color: "var(--color-error)" }}>{erroAcao}</p>
+          )}
+
+          {!reservaFoco.cancelada && confirmando && (
+            <div className="flex flex-col gap-2 p-3" style={{ borderRadius: "var(--radius-sm)", background: "var(--color-error-soft)" }}>
+              <span className="text-[12.5px] font-semibold" style={{ color: "var(--color-error)" }}>
+                Cancelar a reserva de {reservaFoco.nome}? A mesa volta a ficar livre.
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => executar(onCancelar)}
+                  disabled={ocupado}
+                  className="flex-1 text-[12px] font-semibold py-2 text-white disabled:opacity-50"
+                  style={{ background: "var(--color-error)", borderRadius: "var(--radius-sm)" }}
+                >
+                  {ocupado ? "Cancelando…" : "Sim, cancelar"}
+                </button>
+                <button
+                  onClick={() => setConfirmandoId(null)}
+                  disabled={ocupado}
+                  className="flex-1 text-[12px] font-semibold py-2 border"
+                  style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)", background: "var(--color-surface)" }}
+                >
+                  Voltar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!reservaFoco.cancelada && !confirmando && (
             <div className="flex flex-col gap-2">
               {reservaFoco.checkinEm ? (
                 <button
-                  onClick={onDesfazerCheckin}
-                  className="flex items-center justify-center gap-1.5 text-[12.5px] font-semibold py-2.5 border"
+                  onClick={() => executar(onDesfazerCheckin)}
+                  disabled={ocupado}
+                  className="flex items-center justify-center gap-1.5 text-[12.5px] font-semibold py-2.5 border disabled:opacity-50"
                   style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}
                 >
                   Desfazer check-in
                 </button>
               ) : (
                 <button
-                  onClick={onCheckin}
-                  className="flex items-center justify-center gap-1.5 text-[12.5px] font-semibold py-2.5 text-white"
+                  onClick={() => executar(onCheckin)}
+                  disabled={ocupado}
+                  className="flex items-center justify-center gap-1.5 text-[12.5px] font-semibold py-2.5 text-white disabled:opacity-50"
                   style={{ background: "var(--color-accent)", borderRadius: "var(--radius-sm)" }}
                 >
                   {ICONE_CHECK} Cliente chegou
@@ -142,7 +192,7 @@ export default function DetalheMesaConteudo({
                 {ICONE_WHATSAPP} Enviar confirmação pelo WhatsApp
               </a>
               <button
-                onClick={onCancelar}
+                onClick={() => setConfirmandoId(reservaFoco.id)}
                 className="text-[12.5px] font-semibold py-2.5 border"
                 style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}
               >

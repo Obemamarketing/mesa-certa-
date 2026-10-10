@@ -15,13 +15,14 @@ import {
   isoDaData,
   formatarDataCurta,
   listaDeMesas,
+  rotuloDaReserva,
   situacaoDoGrupo,
   useReservas,
   type DiaReserva,
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
-import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
+import { LIMITES, emailValido, telefoneValido } from "@/lib/validacao";
 import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
 import EscolhaMesaMobile from "./EscolhaMesaMobile";
@@ -75,6 +76,16 @@ export default function ReservasPage() {
   const tituloMesas = escolhidas.length > 1 ? `Mesas ${listaDeMesas(escolhidas.map((m) => m.numero))}` : `Mesa ${escolhidas[0]?.numero ?? ""}`;
   const lugaresEscolhidos = escolhidas.reduce((soma, m) => soma + m.capacidade, 0);
 
+  // Dados de contato: o WhatsApp é por onde o lembrete chega, então um número
+  // que não é telefone não pode passar. O aviso só aparece depois que a pessoa
+  // começou a digitar — campo vazio não ganha bronca.
+  const nomeOk = nome.trim().length >= 2;
+  const telefoneOk = telefoneValido(telefone);
+  const emailOk = emailValido(email);
+  const dadosOk = nomeOk && telefoneOk && emailOk;
+  const avisoTelefone = telefone.trim() && !telefoneOk ? "Confira o número: DDD + telefone, por exemplo (41) 99999-9999." : null;
+  const avisoEmail = email.trim() && !emailOk ? "Esse e-mail parece incompleto." : null;
+
   // Escolhe ou desmarca. Com o grupo já acomodado não entra mesa nova: ninguém
   // reserva mesa a mais do que precisa.
   function alternarMesa(numero: string) {
@@ -89,7 +100,7 @@ export default function ReservasPage() {
   }
 
   async function confirmar() {
-    if (!situacao.cobre || !nome.trim() || !telefone.trim() || enviando) return;
+    if (!situacao.cobre || !dadosOk || enviando) return;
     setEnviando(true);
     setErro(null);
 
@@ -109,12 +120,22 @@ export default function ReservasPage() {
         observacao: observacao.trim() || undefined,
       });
       if (!reserva) {
-        for (const feita of criadas) await cancelarReserva(feita.id);
+        // desfazer também pode falhar (queda de rede): nesse caso não dá pra
+        // prometer que nada ficou reservado — avisa a verdade
+        let ficouParaTras = 0;
+        for (const feita of criadas) {
+          const r = await cancelarReserva(feita.id);
+          if (r.erro) ficouParaTras++;
+        }
         setEnviando(false);
-        setErro(
-          (mensagemErro ?? "Não foi possível confirmar a reserva.") +
-            (criadas.length > 0 ? " Nenhuma das mesas foi reservada — escolha de novo." : ""),
-        );
+        const base = mensagemErro ?? "Não foi possível confirmar a reserva.";
+        if (ficouParaTras > 0) {
+          setErro(`${base} Atenção: ${ficouParaTras === 1 ? "uma mesa" : `${ficouParaTras} mesas`} do seu grupo pode ter ficado reservada. Consulte pelo seu nome ou fale com o restaurante.`);
+        } else if (criadas.length > 0) {
+          setErro(`${base} Nenhuma das mesas foi reservada — escolha de novo.`);
+        } else {
+          setErro(base);
+        }
         return;
       }
       criadas.push(reserva);
@@ -310,13 +331,13 @@ export default function ReservasPage() {
 
               <div className="flex flex-col gap-3">
                 <Campo label="Nome completo">
-                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" className="w-full outline-none text-sm bg-transparent" />
+                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
-                <Campo label="WhatsApp">
-                  <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" className="w-full outline-none text-sm bg-transparent" />
+                <Campo label="WhatsApp" aviso={avisoTelefone}>
+                  <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
-                <Campo label="E-mail">
-                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" className="w-full outline-none text-sm bg-transparent" />
+                <Campo label="E-mail (opcional)" aviso={avisoEmail}>
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" maxLength={LIMITES.email} autoComplete="email" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
                 <Campo label="Observação (opcional)">
                   <textarea
@@ -324,6 +345,7 @@ export default function ReservasPage() {
                     onChange={(e) => setObservacao(e.target.value)}
                     placeholder="Ex: gostaria de uma mesa mais tranquila"
                     rows={2}
+                    maxLength={LIMITES.observacao}
                     className="w-full outline-none text-sm bg-transparent resize-none"
                   />
                 </Campo>
@@ -331,7 +353,7 @@ export default function ReservasPage() {
 
               <button
                 onClick={() => setEtapa("revisar")}
-                disabled={!nome.trim() || !telefone.trim()}
+                disabled={!dadosOk}
                 className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
                 style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
               >
@@ -375,14 +397,14 @@ export default function ReservasPage() {
 
                   <div className="flex flex-col gap-4">
                     <CampoDesktop label="Nome completo">
-                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                     </CampoDesktop>
-                    <div className="grid grid-cols-2 gap-4">
-                      <CampoDesktop label="WhatsApp">
-                        <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                    <div className="grid grid-cols-2 gap-4 items-start">
+                      <CampoDesktop label="WhatsApp" aviso={avisoTelefone}>
+                        <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                       </CampoDesktop>
-                      <CampoDesktop label="E-mail">
-                        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      <CampoDesktop label="E-mail (opcional)" aviso={avisoEmail}>
+                        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" maxLength={LIMITES.email} autoComplete="email" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                       </CampoDesktop>
                     </div>
                     <CampoDesktop label="Observação (opcional)">
@@ -391,6 +413,7 @@ export default function ReservasPage() {
                         onChange={(e) => setObservacao(e.target.value)}
                         placeholder="Ex: gostaria de uma mesa mais tranquila"
                         rows={2}
+                        maxLength={LIMITES.observacao}
                         className="w-full outline-none text-[15px] bg-transparent resize-none"
                         style={{ color: "var(--color-dark)" }}
                       />
@@ -399,7 +422,7 @@ export default function ReservasPage() {
 
                   <button
                     onClick={() => setEtapa("revisar")}
-                    disabled={!nome.trim() || !telefone.trim()}
+                    disabled={!dadosOk}
                     className="w-full py-4 text-[15px] font-semibold text-white disabled:opacity-40 flex items-center justify-center gap-2"
                     style={{ background: "var(--color-primary)", borderRadius: "14px" }}
                   >
@@ -516,7 +539,7 @@ export default function ReservasPage() {
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>{reservasFeitas.length > 1 ? "Suas mesas estão garantidas" : "Sua mesa está garantida"} no {reservaBrand.restauranteAtual}.</p>
 
             <div className="w-full border p-5 flex flex-col gap-2.5 text-left" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
-              <Linha label="Data" valor={`${DIAS.find((d) => d.chave === reservasFeitas[0].dia)?.label}, ${formatarDataCurta(dataDoDia(reservasFeitas[0].dia))}`} />
+              <Linha label="Data" valor={rotuloDaReserva(reservasFeitas[0])} />
               <Linha label="Horário" valor={reservasFeitas[0].horario} />
               <Linha label="Pessoas" valor={`${reservasFeitas.reduce((s, r) => s + r.pessoas, 0)} pessoa${reservasFeitas.reduce((s, r) => s + r.pessoas, 0) === 1 ? "" : "s"}`} />
               <Linha label={reservasFeitas.length > 1 ? "Mesas" : "Mesa"} valor={listaDeMesas(reservasFeitas.map((r) => r.mesaNumero))} />
@@ -627,11 +650,19 @@ const ICONE_GRUPO = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="8.5" cy="8" r="3" /><circle cx="16.5" cy="9.5" r="2.3" /><path d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M14.5 15c2.3.2 4 2 4 4.3" /></svg>
 );
 
-function CampoDesktop({ label, children }: { label: string; children: React.ReactNode }) {
+function CampoDesktop({ label, aviso, children }: { label: string; aviso?: string | null; children: React.ReactNode }) {
   return (
-    <div className="border px-5 py-3.5 flex flex-col gap-1" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "14px" }}>
-      <label className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>{label}</label>
-      {children}
+    <div>
+      <div
+        className="border px-5 py-3.5 flex flex-col gap-1"
+        style={{ borderColor: aviso ? "var(--color-error)" : "var(--color-border)", background: "var(--color-surface)", borderRadius: "14px" }}
+      >
+        <label className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>{label}</label>
+        {children}
+      </div>
+      {aviso && (
+        <p role="alert" className="text-[12.5px] font-medium mt-1.5 px-1" style={{ color: "var(--color-error)" }}>{aviso}</p>
+      )}
     </div>
   );
 }
@@ -696,6 +727,43 @@ function CampoReserva({
   );
 }
 
+// Grupo maior que isso não cabe no restaurante inteiro.
+const MAXIMO_PESSOAS = 60;
+
+// "Mais de 10 pessoas": campo de número digitado. Com o valor preso direto ao
+// número, escrever "1" já virava "11" e "15" saía "115". Aqui o campo guarda o
+// texto que a pessoa digita; o número só é confirmado quando está dentro do
+// limite, e ao sair do campo o que sobrar é ajustado.
+function CampoQuantidade({ pessoas, setPessoas, compacto }: { pessoas: number; setPessoas: (n: number) => void; compacto: boolean }) {
+  const [rascunho, setRascunho] = useState(String(pessoas));
+
+  function aoDigitar(texto: string) {
+    const limpo = texto.replace(/\D/g, "").slice(0, 3);
+    setRascunho(limpo);
+    const n = Number(limpo);
+    if (limpo && n >= 11 && n <= MAXIMO_PESSOAS) setPessoas(n);
+  }
+
+  function aoSair() {
+    const n = Math.min(MAXIMO_PESSOAS, Math.max(11, Number(rascunho) || 11));
+    setRascunho(String(n));
+    setPessoas(n);
+  }
+
+  return (
+    <input
+      inputMode="numeric"
+      aria-label={`Quantidade de pessoas (de 11 a ${MAXIMO_PESSOAS})`}
+      value={rascunho}
+      onChange={(e) => aoDigitar(e.target.value)}
+      onBlur={aoSair}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      className={`font-semibold bg-transparent outline-none w-full ${compacto ? "text-[15px]" : "text-[15.5px]"}`}
+      style={{ color: "var(--color-dark)" }}
+    />
+  );
+}
+
 function CampoPessoas({
   pessoas,
   setPessoas,
@@ -729,14 +797,7 @@ function CampoPessoas({
         <span className={`shrink-0 ${compacto ? "scale-[0.94]" : ""}`} style={{ color: "var(--color-primary)" }}>{ICONE_PESSOA}</span>
         <div className="flex-1 min-w-0 flex flex-col leading-tight">
           <span className={compacto ? "text-[12px]" : "text-[12.5px]"} style={{ color: "var(--color-text-muted)" }}>Pessoas</span>
-          <input
-            type="number"
-            min={11}
-            value={pessoas}
-            onChange={(e) => setPessoas(Math.max(11, Number(e.target.value) || 11))}
-            className={`font-semibold bg-transparent outline-none w-full ${compacto ? "text-[15px]" : "text-[15.5px]"}`}
-            style={{ color: "var(--color-dark)" }}
-          />
+          <CampoQuantidade pessoas={pessoas} setPessoas={setPessoas} compacto={compacto} />
         </div>
         <button
           type="button"
@@ -1011,11 +1072,19 @@ function TelaInicio({
   );
 }
 
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+function Campo({ label, aviso, children }: { label: string; aviso?: string | null; children: React.ReactNode }) {
   return (
-    <div className="border px-4 py-3 flex flex-col gap-1" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}>
-      <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>{label}</label>
-      {children}
+    <div>
+      <div
+        className="border px-4 py-3 flex flex-col gap-1"
+        style={{ borderColor: aviso ? "var(--color-error)" : "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}
+      >
+        <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>{label}</label>
+        {children}
+      </div>
+      {aviso && (
+        <p role="alert" className="text-xs font-medium mt-1.5 px-1" style={{ color: "var(--color-error)" }}>{aviso}</p>
+      )}
     </div>
   );
 }

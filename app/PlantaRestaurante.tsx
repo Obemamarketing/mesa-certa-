@@ -63,6 +63,7 @@ export default function PlantaRestaurante({
   mesaSelecionada,
   mesasSelecionadas,
   pessoasMin,
+  data,
   mesas = MESAS_PADRAO,
   aoSelecionar,
   aoMover,
@@ -79,6 +80,9 @@ export default function PlantaRestaurante({
    *  Quando vem, vale no lugar de mesaSelecionada. */
   mesasSelecionadas?: string[];
   pessoasMin?: number;
+  /** Data mostrada ("2026-10-16"). Sem ela vale a próxima ocorrência do dia da
+   *  semana — o que o cliente vê. O painel passa a data de operação. */
+  data?: string;
   mesas?: MesaConfig[];
   /** Torna os marcadores clicáveis (painel e modo operação). */
   aoSelecionar?: (numero: string) => void;
@@ -270,7 +274,7 @@ export default function PlantaRestaurante({
         />
 
         {mesas.map((m) => {
-          let status: EstadoMarcador = statusNeutro ? "livre" : statusMesa(reservas, dia, horario, m, pessoasMin);
+          let status: EstadoMarcador = statusNeutro ? "livre" : statusMesa(reservas, dia, horario, m, pessoasMin, data);
           if (statusSimplificado && status === "reservada") status = "ocupada";
           const escolhida = marcadas.includes(m.numero);
           const estado: EstadoMarcador = escolhida && destaque === "cor" ? "selecionada" : status;

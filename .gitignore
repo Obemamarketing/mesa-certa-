@@ -28,8 +28,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
+# env files (as chaves ficam de fora; o modelo .env.local.example fica)
 .env*
+!.env.local.example
 
 # vercel
 .vercel
@@ -37,6 +38,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-.vercel
-.env*

@@ -1,5 +1,5 @@
 import type { Reserva } from "./reservas";
-import { dataDoDia, listaDeMesas } from "./reservas";
+import { dataDaReserva, listaDeMesas } from "./reservas";
 import { reservaBrand } from "./reservaBrand";
 
 function pad(n: number) {
@@ -12,7 +12,7 @@ export function baixarIcsDaReserva(reserva: Reserva, grupo?: { mesas: string[]; 
   const mesas = grupo?.mesas ?? [reserva.mesaNumero];
   const pessoas = grupo?.pessoas ?? reserva.pessoas;
   const rotuloMesas = `${mesas.length > 1 ? "Mesas" : "Mesa"} ${listaDeMesas(mesas)}`;
-  const data = dataDoDia(reserva.dia);
+  const data = dataDaReserva(reserva);
   const [h, m] = reserva.horario.split(":").map(Number);
   const inicio = new Date(data.getFullYear(), data.getMonth(), data.getDate(), h, m);
   const fim = new Date(inicio.getTime() + 2 * 60 * 60 * 1000);

@@ -72,8 +72,10 @@ export default function LembretesWhatsapp() {
       .then((r) => r.json())
       .then(setEnvio)
       .catch(() => setEnvio(null));
+    // nome próprio a cada assinatura: o Supabase devolve o canal que já existe
+    // quando o nome se repete (mesmo cuidado de lib/reservas.ts)
     const canal = supabase
-      .channel("lembretes-painel")
+      .channel(`lembretes-painel-${Math.random().toString(36).slice(2, 10)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lembretes_whatsapp" }, () => carregar())
       .subscribe();
     return () => {
@@ -156,7 +158,7 @@ export default function LembretesWhatsapp() {
 
           {envio && !envio.configurado && (
             <div className="text-xs p-3" style={{ background: "var(--color-bg)", borderRadius: "var(--radius-sm, 8px)", color: "var(--color-text-muted)" }}>
-              <strong style={{ color: "var(--color-text)" }}>Envio ainda não configurado.</strong> Os lembretes ficam agendados, mas só serão enviados depois que o
+              <strong style={{ color: "var(--color-dark)" }}>Envio ainda não configurado.</strong> Os lembretes ficam agendados, mas só serão enviados depois que o
               servidor receber as credenciais da API oficial do WhatsApp. Falta definir: {envio.faltando.join(", ")}.
             </div>
           )}

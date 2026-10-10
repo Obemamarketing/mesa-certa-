@@ -1,49 +1,75 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   DIAS,
   HORARIO_FIXO,
   TOLERANCIA_MINUTOS,
   cancelarReserva,
+  dataDeOperacao,
   desfazerCheckin,
   fazerCheckin,
+  formatarDataCurta,
+  isoDaData,
   minutosDoHorario,
+  relogioSaoPaulo,
+  reservaNaData,
   statusChegada,
   useReservas,
   type DiaReserva,
+  type ResultadoAcao,
 } from "@/lib/reservas";
+import { useAgora } from "@/lib/relogio";
 import PlantaRestaurante, { LegendaPlanta } from "../../PlantaRestaurante";
 import DetalheMesaConteudo from "../DetalheMesa";
 import StatusBadge from "../StatusBadge";
 import NewReservationModal from "../NewReservationModal";
 import { useMesasConfig } from "@/lib/mesas";
 
-function diaDeHoje(): DiaReserva {
-  const d = new Date().getDay();
-  return DIAS.find((x) => x.diaSemana === d)?.chave ?? "sexta";
-}
-
 export default function ModoOperacaoPage() {
   const { reservas, carregando } = useReservas();
   const { mesas } = useMesasConfig();
-  const [agora, setAgora] = useState<Date | null>(null);
-  const [dia, setDia] = useState<DiaReserva>("sexta");
+  // O relógio é o de São Paulo (o do restaurante), não o do aparelho. O dia
+  // mostrado começa em "hoje" e só muda quando alguém escolhe outro.
+  const agora = useAgora(15000);
+  const relogio = agora ? relogioSaoPaulo(agora) : null;
+  const hojeDaSemana = relogio ? DIAS.find((d) => d.diaSemana === relogio.diaSemana)?.chave : undefined;
+  const [diaEscolhido, setDiaEscolhido] = useState<DiaReserva | null>(null);
+  const dia: DiaReserva = diaEscolhido ?? hojeDaSemana ?? "sexta";
   const [mesaFoco, setMesaFoco] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
+  const [liberarId, setLiberarId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setDia(diaDeHoje());
-    setAgora(new Date());
-    const id = setInterval(() => setAgora(new Date()), 15000);
-    return () => clearInterval(id);
-  }, []);
-
-  const minutosAgora = agora ? agora.getHours() * 60 + agora.getMinutes() : null;
+  const minutosAgora = relogio ? relogio.minutos : null;
   const inicio = minutosDoHorario(HORARIO_FIXO);
   const fimTolerancia = inicio + TOLERANCIA_MINUTOS;
 
-  const doDia = reservas.filter((r) => r.dia === dia && !r.cancelada);
+  // A data que a tela mostra: o dia da semana de hoje vale HOJE. Sem olhar a
+  // data, a lista misturava as reservas desta sexta com as das sextas futuras.
+  const dataOperacao = isoDaData(dataDeOperacao(dia));
+  const ehHoje = relogio !== null && dataOperacao === relogio.iso;
+
+  // Toda ação do painel passa por aqui: se o banco recusar, o erro aparece —
+  // antes o botão "funcionava" sem fazer nada.
+  async function acao(fn: () => Promise<ResultadoAcao> | void) {
+    setErroAcao(null);
+    const r = await fn();
+    if (r && r.erro) setErroAcao(r.erro);
+  }
+
+  // "Liberar" cancela a reserva: pede um segundo toque (e desiste sozinho).
+  function liberar(id: string) {
+    if (liberarId === id) {
+      setLiberarId(null);
+      acao(() => cancelarReserva(id));
+      return;
+    }
+    setLiberarId(id);
+    setTimeout(() => setLiberarId((atual) => (atual === id ? null : atual)), 4000);
+  }
+
+  const doDia = reservas.filter((r) => reservaNaData(r, dia, dataOperacao) && !r.cancelada);
   const pendentes = doDia.filter((r) => !r.checkinEm);
   const chegaram = doDia.filter((r) => r.checkinEm);
   const lista = [...pendentes, ...chegaram].sort((a, b) => {
@@ -55,9 +81,12 @@ export default function ModoOperacaoPage() {
   const reservaFoco = mesaFoco ? doDia.find((r) => r.mesaNumero === mesaFoco) : undefined;
 
   // contador da tolerância — só sinaliza, nunca cancela sozinho
+  // (só vale para o dia de hoje: nas abas de outros dias a contagem seria mentira)
   let faixa: { texto: string; tom: "neutro" | "alerta" | "perigo" | "ok" } = { texto: "", tom: "neutro" };
-  if (minutosAgora !== null) {
-    if (minutosAgora < inicio) faixa = { texto: `Faltam ${inicio - minutosAgora} min para as 19h30`, tom: "neutro" };
+  if (!ehHoje) {
+    faixa = { texto: `Reservas de ${formatarDataCurta(dataDeOperacao(dia))}`, tom: "neutro" };
+  } else if (minutosAgora !== null) {
+    if (minutosAgora < inicio) faixa = { texto: `Faltam ${inicio - minutosAgora} min para as ${HORARIO_FIXO.replace(":", "h")}`, tom: "neutro" };
     else if (minutosAgora <= fimTolerancia) {
       const restam = fimTolerancia - minutosAgora;
       faixa = { texto: `Dentro da tolerância — restam ${restam} min`, tom: restam <= 5 ? "perigo" : "alerta" };
@@ -81,7 +110,7 @@ export default function ModoOperacaoPage() {
             <div className="flex items-baseline gap-4 mt-1">
               <span className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Agora</span>
               <span className="text-[56px] font-bold leading-none tabular-nums" style={{ color: "var(--color-dark)" }}>
-                {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+                {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : "--:--"}
               </span>
               <span className="text-[15px]" style={{ color: "var(--color-text-muted)" }}>reservas às {HORARIO_FIXO}</span>
             </div>
@@ -92,7 +121,7 @@ export default function ModoOperacaoPage() {
               {DIAS.map((d) => (
                 <button
                   key={d.chave}
-                  onClick={() => { setDia(d.chave); setMesaFoco(null); }}
+                  onClick={() => { setDiaEscolhido(d.chave); setMesaFoco(null); }}
                   className="px-3.5 py-2 text-[13px] font-semibold border"
                   style={{
                     borderRadius: "999px",
@@ -112,6 +141,12 @@ export default function ModoOperacaoPage() {
             )}
           </div>
         </div>
+
+        {erroAcao && (
+          <p role="alert" className="text-[14px] font-semibold px-4 py-3 border" style={{ background: "var(--color-error-soft)", color: "var(--color-error)", borderColor: "var(--color-error)", borderRadius: "var(--radius-sm)" }}>
+            {erroAcao}
+          </p>
+        )}
 
         {/* a planta é o elemento principal da operação: fica com a maior parte */}
         <div className="grid xl:grid-cols-[minmax(0,470px)_minmax(0,1.35fr)] gap-5 items-start">
@@ -156,7 +191,7 @@ export default function ModoOperacaoPage() {
                     <StatusBadge chegada={chegada} />
                     {r.checkinEm ? (
                       <button
-                        onClick={() => desfazerCheckin(r.id)}
+                        onClick={() => acao(() => desfazerCheckin(r.id))}
                         className="text-[12px] font-semibold px-3 py-2 border shrink-0"
                         style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}
                       >
@@ -165,7 +200,7 @@ export default function ModoOperacaoPage() {
                     ) : (
                       <div className="flex gap-1.5 shrink-0">
                         <button
-                          onClick={() => fazerCheckin(r.id)}
+                          onClick={() => acao(() => fazerCheckin(r.id))}
                           className="text-[13px] font-semibold px-4 py-2.5 text-white"
                           style={{ background: "var(--color-accent)", borderRadius: "var(--radius-sm)" }}
                         >
@@ -173,11 +208,11 @@ export default function ModoOperacaoPage() {
                         </button>
                         {chegada === "atrasado" && (
                           <button
-                            onClick={() => cancelarReserva(r.id)}
+                            onClick={() => liberar(r.id)}
                             className="text-[13px] font-semibold px-3 py-2.5 text-white"
                             style={{ background: "var(--color-error)", borderRadius: "var(--radius-sm)" }}
                           >
-                            Liberar
+                            {liberarId === r.id ? "Confirmar?" : "Liberar"}
                           </button>
                         )}
                       </div>
@@ -205,6 +240,7 @@ export default function ModoOperacaoPage() {
                 <PlantaRestaurante
                   reservas={reservas}
                   dia={dia}
+                  data={dataOperacao}
                   horario={HORARIO_FIXO}
                   mesaSelecionada={mesaFoco}
                   mesas={mesas}

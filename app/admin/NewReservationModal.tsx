@@ -10,6 +10,8 @@ import {
   type DiaReserva,
   type Reserva,
 } from "@/lib/reservas";
+import { useMesasConfig } from "@/lib/mesas";
+import { LIMITES, telefoneValido } from "@/lib/validacao";
 import MesaMapa from "../MesaMapa";
 
 export default function NewReservationModal({
@@ -31,8 +33,17 @@ export default function NewReservationModal({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  // este formulário reserva uma mesa por vez: acima da maior mesa do salão não
+  // existe mesa possível (grupo maior se reserva pela tela do cliente)
+  const { mesas } = useMesasConfig();
+  const maximoPessoas = Math.max(1, ...mesas.map((m) => m.capacidade));
+
+  const nomeOk = nome.trim().length >= 2;
+  const telefoneOk = telefoneValido(telefone);
+  const avisoTelefone = telefone.trim() && !telefoneOk ? "Confira o telefone: DDD + número, por exemplo (41) 99999-9999." : null;
+
   async function confirmar() {
-    if (!mesaNumero || !nome.trim() || !telefone.trim() || enviando) return;
+    if (!mesaNumero || !nomeOk || !telefoneOk || enviando) return;
     setEnviando(true);
     setErro(null);
     const { reserva, erro: mensagemErro } = await criarReserva({
@@ -97,7 +108,7 @@ export default function NewReservationModal({
             <div className="flex items-center justify-between border px-3 py-2" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}>
               <button onClick={() => { setPessoas((p) => Math.max(1, p - 1)); setMesaNumero(null); }} className="text-lg font-semibold w-5">−</button>
               <span className="text-sm font-semibold">{pessoas}</span>
-              <button onClick={() => { setPessoas((p) => p + 1); setMesaNumero(null); }} className="text-lg font-semibold w-5">+</button>
+              <button onClick={() => { setPessoas((p) => Math.min(maximoPessoas, p + 1)); setMesaNumero(null); }} className="text-lg font-semibold w-5">+</button>
             </div>
           </div>
         </div>
@@ -108,11 +119,14 @@ export default function NewReservationModal({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do cliente" className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
-          <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="Telefone" inputMode="tel" className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
+          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do cliente" maxLength={LIMITES.nome} className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
+          <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="Telefone" inputMode="tel" maxLength={LIMITES.telefone} className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: avisoTelefone ? "var(--color-error)" : "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
         </div>
+        {avisoTelefone && (
+          <p role="alert" className="text-xs font-semibold -mt-3" style={{ color: "var(--color-error)" }}>{avisoTelefone}</p>
+        )}
 
-        <input value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional) — ex: aniversário" className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
+        <input value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional) — ex: aniversário" maxLength={LIMITES.observacao} className="border px-3 py-2.5 text-sm outline-none" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }} />
 
         {erro && <p className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
 
@@ -122,7 +136,7 @@ export default function NewReservationModal({
           </button>
           <button
             onClick={confirmar}
-            disabled={!mesaNumero || !nome.trim() || !telefone.trim() || enviando}
+            disabled={!mesaNumero || !nomeOk || !telefoneOk || enviando}
             className="flex-1 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
             style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
           >

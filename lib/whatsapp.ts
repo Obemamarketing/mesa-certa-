@@ -12,17 +12,15 @@
 // mensagem enviada pelo backend — só a forma de envio muda.
 
 import { reservaBrand } from "./reservaBrand";
-import { DIAS, TOLERANCIA_MINUTOS, dataDoDia, formatarDataCurta, type Reserva } from "./reservas";
+import { TOLERANCIA_MINUTOS, rotuloDaReserva, type Reserva } from "./reservas";
+import { telefoneInternacional } from "./validacao";
 
 export function mensagemConfirmacao(reserva: Reserva): string {
-  const diaLabel = DIAS.find((d) => d.chave === reserva.dia)?.label ?? reserva.dia;
-  const dataLabel = formatarDataCurta(dataDoDia(reserva.dia));
-
   const linhas = [
     reservaBrand.restauranteAtual,
     "Reserva confirmada ✅",
     "",
-    `Data: ${diaLabel}, ${dataLabel}`,
+    `Data: ${rotuloDaReserva(reserva)}`,
     `Horário: ${reserva.horario.replace(":", "h")}`,
     `Pessoas: ${reserva.pessoas}`,
     reserva.mesaNumero ? `Mesa: ${reserva.mesaNumero}` : null,
@@ -36,7 +34,5 @@ export function mensagemConfirmacao(reserva: Reserva): string {
 
 // Assume DDI 55 (Brasil) quando o telefone vier só com DDD + número.
 export function linkWhatsapp(telefone: string, mensagem: string): string {
-  const digitos = telefone.replace(/\D/g, "");
-  const comDDI = digitos.length <= 11 ? `55${digitos}` : digitos;
-  return `https://wa.me/${comDDI}?text=${encodeURIComponent(mensagem)}`;
+  return `https://wa.me/${telefoneInternacional(telefone)}?text=${encodeURIComponent(mensagem)}`;
 }

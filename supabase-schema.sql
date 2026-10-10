@@ -16,6 +16,9 @@ create table if not exists reservas (
 
 -- Impede duas reservas ativas na mesma mesa, dia e horário.
 -- (Índice parcial: só considera linhas não canceladas.)
+-- ATENÇÃO: "dia" é só sexta/sábado/domingo, então este índice trava a mesa em
+-- todas as semanas. O supabase-migration-datas.sql (já incluso em
+-- supabase-completo.sql) troca por um índice por DATA — rode-o em seguida.
 create unique index if not exists reservas_slot_unico
   on reservas (dia, horario, mesa_numero)
   where not cancelada;

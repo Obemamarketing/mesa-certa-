@@ -1,37 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
-  DIAS,
-  TOLERANCIA_MINUTOS,
   buscarReservaDoCliente,
   cancelarReserva,
   codigoDaReserva,
-  dataDoDia,
-  formatarDataCurta,
+  horaLimiteDaTolerancia,
   MINIMO_LETRAS_NA_BUSCA,
-  minutosDoHorario,
+  relogioSaoPaulo,
+  rotuloDaReserva,
   statusChegada,
   type Reserva,
 } from "@/lib/reservas";
+import { useAgora } from "@/lib/relogio";
 import { useMesasConfig } from "@/lib/mesas";
-
-function horaDaTolerancia(horario: string): string {
-  const total = minutosDoHorario(horario) + TOLERANCIA_MINUTOS;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
 
 type Estado = { rotulo: string; fundo: string; cor: string; nota?: string };
 
-function estadoDaReserva(r: Reserva, minutosAgora: number | null, hojeEhODia: boolean): Estado {
+function estadoDaReserva(r: Reserva, minutosAgora: number | null): Estado {
   if (r.cancelada) return { rotulo: "Cancelada", fundo: "var(--color-error-soft)", cor: "var(--color-error)", nota: "Esta reserva foi cancelada e a mesa foi liberada." };
   if (r.checkinEm) return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "Você já foi recebido nesta reserva. Esperamos você de novo!" };
-  const chegada = statusChegada(r, hojeEhODia ? minutosAgora : null);
-  if (chegada === "atrasado") return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "O prazo de tolerância desta reserva já passou. Se ainda quiser vir, faça uma nova reserva." };
+  // a data da reserva entra na conta: reserva de outra data não está "na
+  // tolerância" só porque o relógio de hoje passou das 19h30
+  const chegada = statusChegada(r, minutosAgora);
+  if (chegada === "atrasado") return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "A data desta reserva já passou. Se quiser voltar, faça uma nova reserva." };
   if (chegada === "tolerancia") return { rotulo: "Em tolerância", fundo: "var(--color-secondary-soft)", cor: "var(--color-secondary-dark)", nota: "Sua mesa está sendo guardada. Chegue até o fim da tolerância." };
   return { rotulo: "Confirmada", fundo: "var(--color-accent-soft)", cor: "var(--color-accent-dark)" };
 }
@@ -42,28 +38,32 @@ export default function ConsultaPage() {
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState<Reserva[] | null>(null);
   const [buscando, setBuscando] = useState(false);
-  const [minutosAgora, setMinutosAgora] = useState<number | null>(null);
-  const [hojeDia, setHojeDia] = useState<number | null>(null);
+  const agora = useAgora(60000);
+  // hora do restaurante (São Paulo), não a do aparelho de quem consulta
+  const minutosAgora = agora ? relogioSaoPaulo(agora).minutos : null;
   const [acao, setAcao] = useState<{ id: string; tipo: "cancelar" | "alterar" } | null>(null);
   const [processandoId, setProcessandoId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const d = new Date();
-    setMinutosAgora(d.getHours() * 60 + d.getMinutes());
-    setHojeDia(d.getDay());
-  }, []);
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
 
   async function buscar() {
     if (termo.trim().length < MINIMO_LETRAS_NA_BUSCA || buscando) return;
     setBuscando(true);
     setAcao(null);
+    setErroAcao(null);
     setResultados(await buscarReservaDoCliente(termo));
     setBuscando(false);
   }
 
   async function cancelar(id: string, depois?: () => void) {
     setProcessandoId(id);
-    await cancelarReserva(id);
+    setErroAcao(null);
+    const r = await cancelarReserva(id);
+    if (r.erro) {
+      // não cancelou: não segue pra "escolher nova reserva" deixando a antiga de pé
+      setProcessandoId(null);
+      setErroAcao(r.erro);
+      return;
+    }
     setResultados(await buscarReservaDoCliente(termo));
     setProcessandoId(null);
     setAcao(null);
@@ -121,9 +121,7 @@ export default function ConsultaPage() {
 
         {resultados?.map((r) => {
           const mesa = mesas.find((m) => m.numero === r.mesaNumero);
-          const diaLabel = DIAS.find((d) => d.chave === r.dia);
-          const hojeEhODia = hojeDia !== null && diaLabel?.diaSemana === hojeDia;
-          const estado = estadoDaReserva(r, minutosAgora, hojeEhODia);
+          const estado = estadoDaReserva(r, minutosAgora);
           const encerrada = estado.rotulo === "Cancelada" || estado.rotulo === "Encerrada";
           const confirmando = acao?.id === r.id ? acao.tipo : null;
 
@@ -133,7 +131,7 @@ export default function ConsultaPage() {
                 <div>
                   <p className="text-[11px] font-semibold tracking-[0.14em] uppercase" style={{ color: "var(--color-text-muted)" }}>Reserva #{codigoDaReserva(r.id)}</p>
                   <p className="font-display text-[26px] leading-tight mt-1" style={{ color: "var(--color-dark)" }}>
-                    {diaLabel?.label}, {formatarDataCurta(dataDoDia(r.dia))}
+                    {rotuloDaReserva(r)}
                   </p>
                 </div>
                 <span className="text-[12px] font-semibold px-3 py-1.5 rounded-full shrink-0" style={{ background: estado.fundo, color: estado.cor }}>
@@ -146,7 +144,7 @@ export default function ConsultaPage() {
                 <Linha rotulo="Pessoas" valor={`${r.pessoas} pessoa${r.pessoas === 1 ? "" : "s"}`} />
                 <Linha rotulo="Mesa" valor={`Mesa ${r.mesaNumero}`} />
                 <Linha rotulo="Área" valor={mesa?.zona ?? "—"} />
-                <Linha rotulo="Tolerância" valor={`Chegue até ${horaDaTolerancia(r.horario)}`} ultima={!r.observacao} />
+                <Linha rotulo="Tolerância" valor={`Chegue até ${horaLimiteDaTolerancia(r.horario)}`} ultima={!r.observacao} />
                 {r.observacao && <Linha rotulo="Observação" valor={r.observacao} ultima />}
               </dl>
 
@@ -177,6 +175,9 @@ export default function ConsultaPage() {
 
               {!encerrada && confirmando && (
                 <div className="px-6 pb-6 pt-1 flex flex-col gap-3">
+                  {erroAcao && acao?.id === r.id && (
+                    <p role="alert" className="text-[13.5px] font-semibold" style={{ color: "var(--color-error)" }}>{erroAcao}</p>
+                  )}
                   <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-dark)" }}>
                     {confirmando === "cancelar"
                       ? "Tem certeza que deseja cancelar? A mesa será liberada para outros clientes."

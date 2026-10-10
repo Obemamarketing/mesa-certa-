@@ -135,7 +135,7 @@ export function situacaoDoGrupo(escolhidas: MesaDoGrupo[], pessoas: number) {
   let aviso: string | null = null;
   if (escolhidas.length > 0 && faltam > 0) {
     aviso =
-      `Faltam ${faltam} lugar${faltam === 1 ? "" : "es"} para acomodar ${pessoas === 1 ? "a pessoa" : `as ${pessoas} pessoas`}. ` +
+      `${faltam === 1 ? "Falta" : "Faltam"} ${faltam} lugar${faltam === 1 ? "" : "es"} para acomodar ${pessoas === 1 ? "a pessoa" : `as ${pessoas} pessoas`}. ` +
       `Escolha mais uma mesa.`;
   }
   return { faltam, cobre, partes, aviso };

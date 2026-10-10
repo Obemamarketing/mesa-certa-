@@ -73,12 +73,28 @@ async function executar(request: NextRequest) {
   }
 
   const lote = (data ?? []) as Reivindicado[];
-  const resumo = { reivindicados: lote.length, enviados: 0, falhas: 0, repetir: 0, cancelados: 0 };
+  const resumo = { reivindicados: lote.length, enviados: 0, falhas: 0, repetir: 0, cancelados: 0, erros_ao_gravar: 0 };
+
+  // Nada vencido neste ciclo (o normal, na maioria das vezes de 5 em 5 min).
+  if (lote.length === 0) {
+    return NextResponse.json({ ok: true, ...resumo });
+  }
+
+  // Gravar o resultado é o que impede o mesmo lembrete de sair duas vezes. Se
+  // a gravação falhar, o envio já aconteceu: não dá pra desfazer, mas o erro
+  // não pode passar em silêncio — vai pro log da Vercel e pro resumo.
+  async function gravar(ids: string[], campos: Record<string, unknown>) {
+    const { error } = await supabase.from("lembretes_whatsapp").update(campos).in("id", ids);
+    if (error) {
+      resumo.erros_ao_gravar++;
+      console.error(`lembretes: não gravou o resultado de ${ids.join(", ")}: ${error.message}`);
+    }
+  }
 
   // Área de cada mesa vem da configuração central: se o administrador renomeou
   // uma mesa, a lista do código estaria desatualizada.
   const zonaPorMesa = new Map<string, string>();
-  if (lote.length > 0) {
+  {
     const { data: mesas } = await supabase.from("mesas").select("numero, zona");
     for (const m of (mesas ?? []) as { numero: string; zona: string }[]) zonaPorMesa.set(m.numero, m.zona);
   }
@@ -97,7 +113,7 @@ async function executar(request: NextRequest) {
       vivos.push(item);
       continue;
     }
-    await supabase.from("lembretes_whatsapp").update({ status: "cancelado", atualizado_em: new Date().toISOString() }).eq("id", item.lembrete_id);
+    await gravar([item.lembrete_id], { status: "cancelado", atualizado_em: new Date().toISOString() });
     resumo.cancelados++;
   }
 
@@ -133,29 +149,24 @@ async function executar(request: NextRequest) {
     // o resultado vale pra todas as reservas do grupo
     const agora = new Date().toISOString();
     if (resultado.ok) {
-      await supabase
-        .from("lembretes_whatsapp")
-        .update({
-          status: "enviado",
-          enviado_em: agora,
-          wa_message_id: resultado.messageId,
-          erro: membros.length > 1 ? `Aviso único enviado para as mesas ${mesasDoGrupo.join(", ")}` : null,
-          atualizado_em: agora,
-        })
-        .in("id", idsDosLembretes);
+      await gravar(idsDosLembretes, {
+        status: "enviado",
+        enviado_em: agora,
+        wa_message_id: resultado.messageId,
+        erro: membros.length > 1 ? `Aviso único enviado para as mesas ${mesasDoGrupo.join(", ")}` : null,
+        atualizado_em: agora,
+      });
       resumo.enviados++;
     } else if (resultado.tentarDeNovo && tentativas < MAX_TENTATIVAS) {
       // falha temporária: volta pra fila, o próximo ciclo (5 min) tenta de novo
-      await supabase
-        .from("lembretes_whatsapp")
-        .update({ status: "pendente", erro: `Tentativa ${tentativas}/${MAX_TENTATIVAS}: ${resultado.erro}`, atualizado_em: agora })
-        .in("id", idsDosLembretes);
+      await gravar(idsDosLembretes, {
+        status: "pendente",
+        erro: `Tentativa ${tentativas}/${MAX_TENTATIVAS}: ${resultado.erro}`,
+        atualizado_em: agora,
+      });
       resumo.repetir++;
     } else {
-      await supabase
-        .from("lembretes_whatsapp")
-        .update({ status: "falhou", erro: resultado.erro, atualizado_em: agora })
-        .in("id", idsDosLembretes);
+      await gravar(idsDosLembretes, { status: "falhou", erro: resultado.erro, atualizado_em: agora });
       resumo.falhas++;
     }
   }

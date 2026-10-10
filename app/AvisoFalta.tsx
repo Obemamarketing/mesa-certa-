@@ -36,7 +36,7 @@ export default function AvisoFalta({ faltam, pessoas, compacto = false }: { falt
         !
       </span>
       <p className={`leading-snug ${compacto ? "text-[13.5px]" : "text-[15px]"}`}>
-        <strong className="font-bold">Faltam {lugares}</strong> para acomodar {grupo}.
+        <strong className="font-bold">{faltam === 1 ? "Falta" : "Faltam"} {lugares}</strong> para acomodar {grupo}.
         <span className="block font-bold mt-0.5">Escolha mais uma mesa para continuar.</span>
       </p>
     </div>

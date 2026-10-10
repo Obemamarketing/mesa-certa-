@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { DIAS, dataDoDia, formatarDataCurta, historicoDoCliente, listarClientes, useReservas } from "@/lib/reservas";
+import { historicoDoCliente, listarClientes, relogioSaoPaulo, rotuloDaReserva, useReservas } from "@/lib/reservas";
 
 export default function ClientesPage() {
   const { reservas, carregando } = useReservas();
+  const hojeIso = relogioSaoPaulo().iso;
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<string | null>(null);
   const clientes = listarClientes(reservas);
@@ -70,10 +71,10 @@ export default function ClientesPage() {
                         <div key={r.id} className="flex flex-col gap-0.5 text-[13px] py-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
                           <div className="flex items-center justify-between gap-3">
                             <span className="font-semibold">
-                              {DIAS.find((d) => d.chave === r.dia)?.label}, {formatarDataCurta(dataDoDia(r.dia))} · {r.horario}
+                              {rotuloDaReserva(r)} · {r.horario}
                             </span>
                             <span style={{ color: r.cancelada ? "var(--color-error)" : r.checkinEm ? "var(--color-accent-dark)" : "var(--color-text-muted)" }}>
-                              {r.cancelada ? "Cancelada" : r.checkinEm ? "Compareceu" : "Confirmada"}
+                              {r.cancelada ? "Cancelada" : r.checkinEm ? "Compareceu" : r.dataReserva && r.dataReserva < hojeIso ? "Não compareceu" : "Confirmada"}
                             </span>
                           </div>
                           <span style={{ color: "var(--color-text-muted)" }}>

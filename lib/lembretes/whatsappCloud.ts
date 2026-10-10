@@ -41,6 +41,8 @@
 //   ponto final depois de {{7}}. Se a Meta pedir ajustes no texto, mantenha
 //   a ORDEM das 7 variáveis — é ela que o código usa.)
 
+import { telefoneInternacional } from "../validacao";
+
 export type ConfigWhatsapp = {
   token: string;
   phoneNumberId: string;
@@ -69,10 +71,9 @@ export function lerConfigWhatsapp(): { config: ConfigWhatsapp | null; faltando: 
 }
 
 // Número no formato internacional, só dígitos. Assume Brasil (55) quando vier
-// só DDD + número.
+// só DDD + número; número escrito com "+" de outro país segue como está.
 export function normalizarTelefone(telefone: string): string {
-  const digitos = telefone.replace(/\D/g, "");
-  return digitos.length <= 11 ? `55${digitos}` : digitos;
+  return telefoneInternacional(telefone);
 }
 
 export type ResultadoEnvio =

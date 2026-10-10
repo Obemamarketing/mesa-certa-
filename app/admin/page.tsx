@@ -1,25 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
   DIAS,
   HORARIO_FIXO,
-  ROTULO_STATUS_CHEGADA,
-  TOLERANCIA_MINUTOS,
   cancelarReserva,
-  dataDoDia,
+  dataDaReserva,
+  dataDoIso,
+  dataHoje,
   desfazerCheckin,
   fazerCheckin,
   formatarDataCurta,
   horarios,
+  isoDaData,
   listarClientes,
   minutosDoHorario,
+  relogioSaoPaulo,
+  reservaNaData,
   statusChegada,
   useReservas,
-  type Mesa,
+  type DiaReserva,
   type Reserva,
 } from "@/lib/reservas";
+import { useAgora } from "@/lib/relogio";
 import PlantaRestaurante, { LegendaPlanta } from "../PlantaRestaurante";
 import { useMesasConfig } from "@/lib/mesas";
 import DetalheMesaConteudo from "./DetalheMesa";
@@ -43,10 +47,24 @@ const ICONE_NOTA = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /><path d="M9.5 13h5M9.5 16.5h5" /></svg>
 );
 
+// As próximas datas em que o restaurante abre, hoje incluído. O painel navega
+// por elas — "sexta 16/10", "sábado 17/10", "domingo 18/10", "sexta 23/10"… —
+// em vez de "sexta/sábado/domingo" soltos, que misturavam semanas diferentes.
+function proximasDatasDeServico(base: Date, quantidade: number): { iso: string; dia: DiaReserva; data: Date }[] {
+  const lista: { iso: string; dia: DiaReserva; data: Date }[] = [];
+  for (let i = 0; lista.length < quantidade && i < 60; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const dia = DIAS.find((x) => x.diaSemana === d.getDay());
+    if (dia) lista.push({ iso: isoDaData(d), dia: dia.chave, data: d });
+  }
+  return lista;
+}
+
 export default function ReservasAdminPage() {
   const { reservas, carregando } = useReservas();
   const { mesas } = useMesasConfig();
-  const [diaIndex, setDiaIndex] = useState(0);
+  const [indiceData, setIndiceData] = useState(0);
   const [painelMobile, setPainelMobile] = useState<"planta" | "reservas" | "lista">("planta");
   const [horarioPlanta, setHorarioPlanta] = useState(HORARIO_FIXO);
   const [busca, setBusca] = useState("");
@@ -56,22 +74,23 @@ export default function ReservasAdminPage() {
   const [ordemAsc, setOrdemAsc] = useState(true);
   const [mesaFoco, setMesaFoco] = useState<string | null>(null);
   const [reservaFocoId, setReservaFocoId] = useState<string | null>(null);
-  const [minutosAgora, setMinutosAgora] = useState<number | null>(null);
 
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      setMinutosAgora(d.getHours() * 60 + d.getMinutes());
-    };
-    tick();
-    const id = setInterval(tick, 60000);
-    return () => clearInterval(id);
-  }, []);
+  // relógio do restaurante (São Paulo), não o do aparelho
+  const agora = useAgora(60000);
+  const relogio = agora ? relogioSaoPaulo(agora) : null;
+  const minutosAgora = relogio ? relogio.minutos : null;
+  const hojeIso = relogio ? relogio.iso : isoDaData(dataHoje());
 
-  const diaAtivo = DIAS[diaIndex];
+  const datas = useMemo(() => proximasDatasDeServico(dataDoIso(hojeIso), 9), [hojeIso]);
+  const alvo = datas[Math.min(indiceData, datas.length - 1)];
+  const diaAtivo = DIAS.find((d) => d.chave === alvo.dia)!;
+  const dataAtiva = alvo.iso;
+  const ehHoje = dataAtiva === hojeIso;
   const clientes = listarClientes(reservas);
 
-  const baseReservas = filtro === "dia" ? reservas.filter((r) => r.dia === diaAtivo.chave) : reservas;
+  // "Este dia" = só as reservas da DATA mostrada. Filtrar só pelo dia da semana
+  // juntava as desta sexta com as de todas as outras sextas.
+  const baseReservas = filtro === "dia" ? reservas.filter((r) => reservaNaData(r, diaAtivo.chave, dataAtiva)) : reservas;
   const buscaNormalizada = busca.trim().toLowerCase();
   const reservasFiltradas = (buscaNormalizada
     ? baseReservas.filter(
@@ -84,6 +103,18 @@ export default function ReservasAdminPage() {
   ).filter((r) => !r.cancelada || filtro === "todos");
 
   const reservasOrdenadas = [...reservasFiltradas].sort((a, b) => {
+    // em "todas as datas": as que vêm pela frente primeiro (da mais próxima
+    // pra mais distante), depois as que já passaram (da mais recente pra trás)
+    if (filtro === "todos") {
+      const da = a.dataReserva ?? "";
+      const db = b.dataReserva ?? "";
+      if (da !== db) {
+        const aFutura = da >= hojeIso;
+        const bFutura = db >= hojeIso;
+        if (aFutura !== bFutura) return aFutura ? -1 : 1;
+        return aFutura ? da.localeCompare(db) : db.localeCompare(da);
+      }
+    }
     const dir = ordemAsc ? 1 : -1;
     if (ordenarPor === "horario") return (minutosDoHorario(a.horario) - minutosDoHorario(b.horario)) * dir;
     return (a.pessoas - b.pessoas) * dir;
@@ -97,13 +128,14 @@ export default function ReservasAdminPage() {
     }
   }
 
-  const reservasDoDia = reservas.filter((r) => r.dia === diaAtivo.chave && !r.cancelada);
+  const reservasDoDia = reservas.filter((r) => reservaNaData(r, diaAtivo.chave, dataAtiva) && !r.cancelada);
   const pessoasDoDia = reservasDoDia.reduce((s, r) => s + r.pessoas, 0);
   const mesasOcupadas = new Set(reservasDoDia.map((r) => r.mesaNumero)).size;
-  const ocupacaoPct = Math.round((mesasOcupadas / mesas.length) * 100);
+  const ocupacaoPct = mesas.length > 0 ? Math.round((mesasOcupadas / mesas.length) * 100) : 0;
 
+  // "nas próximas 2 horas" só faz sentido olhando para o dia de hoje
   const proximasDuasHoras =
-    minutosAgora !== null
+    minutosAgora !== null && ehHoje
       ? reservasDoDia.filter((r) => {
           const m = minutosDoHorario(r.horario);
           return m >= minutosAgora && m <= minutosAgora + 120;
@@ -116,13 +148,16 @@ export default function ReservasAdminPage() {
 
   const mesaFocoObj = mesaFoco ? mesas.find((m) => m.numero === mesaFoco) : undefined;
   const reservaFoco = reservaFocoId
-    ? reservasDoDia.find((r) => r.id === reservaFocoId)
+    ? reservas.find((r) => r.id === reservaFocoId && !r.cancelada)
     : mesaFoco
     ? reservasDoDia.find((r) => r.mesaNumero === mesaFoco && r.horario === horarioPlanta) ??
       reservasDoDia.find((r) => r.mesaNumero === mesaFoco)
     : undefined;
 
   function focarReserva(r: Reserva) {
+    // reserva de outra data (lista "todas as datas"): leva a planta para o dia dela
+    const i = datas.findIndex((d) => d.iso === r.dataReserva);
+    if (i >= 0) setIndiceData(i);
     setMesaFoco(r.mesaNumero);
     setReservaFocoId(r.id);
     setHorarioPlanta(r.horario);
@@ -137,7 +172,6 @@ export default function ReservasAdminPage() {
   return (
     <>
       {modalAberto && <NewReservationModal reservas={reservas} diaInicial={diaAtivo.chave} onFechar={() => setModalAberto(false)} />}
-
       <div className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-10 py-7 flex flex-col gap-6">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -149,12 +183,24 @@ export default function ReservasAdminPage() {
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
             <div className="flex items-center justify-between gap-1 border px-1.5 py-1.5" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}>
-              <button onClick={() => setDiaIndex((i) => (i - 1 + DIAS.length) % DIAS.length)} aria-label="Dia anterior" className="w-7 h-7 flex items-center justify-center shrink-0" style={{ color: "var(--color-text-muted)" }}>‹</button>
+              <button
+                onClick={() => { setIndiceData((i) => Math.max(0, i - 1)); setMesaFoco(null); setReservaFocoId(null); }}
+                disabled={indiceData === 0}
+                aria-label="Dia anterior"
+                className="w-7 h-7 flex items-center justify-center shrink-0 disabled:opacity-30"
+                style={{ color: "var(--color-text-muted)" }}
+              >‹</button>
               <span className="text-sm font-medium px-2 text-center whitespace-nowrap flex items-center gap-1.5">
                 {ICONE_CALENDARIO}
-                {diaAtivo.label}, {formatarDataCurta(dataDoDia(diaAtivo.chave))}
+                {diaAtivo.label}, {formatarDataCurta(alvo.data)}
               </span>
-              <button onClick={() => setDiaIndex((i) => (i + 1) % DIAS.length)} aria-label="Próximo dia" className="w-7 h-7 flex items-center justify-center shrink-0" style={{ color: "var(--color-text-muted)" }}>›</button>
+              <button
+                onClick={() => { setIndiceData((i) => Math.min(datas.length - 1, i + 1)); setMesaFoco(null); setReservaFocoId(null); }}
+                disabled={indiceData >= datas.length - 1}
+                aria-label="Próximo dia"
+                className="w-7 h-7 flex items-center justify-center shrink-0 disabled:opacity-30"
+                style={{ color: "var(--color-text-muted)" }}
+              >›</button>
             </div>
             <button
               onClick={() => setModalAberto(true)}
@@ -170,7 +216,7 @@ export default function ReservasAdminPage() {
         <div className={`flex-wrap gap-3 ${painelMobile === "reservas" ? "flex" : "hidden lg:flex"}`}>
           <StatCard
             icon={ICONE_CALENDARIO}
-            label="reservas hoje"
+            label={ehHoje ? "reservas hoje" : "reservas no dia"}
             valor={String(reservasDoDia.length)}
             rodape={proximasDuasHoras !== null ? `${proximasDuasHoras} nas próximas 2 horas` : undefined}
           />
@@ -226,8 +272,8 @@ export default function ReservasAdminPage() {
               className="border px-3 py-2.5 text-sm outline-none"
               style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}
             >
-              <option value="dia">Hoje</option>
-              <option value="todos">Todos os dias</option>
+              <option value="dia">Este dia</option>
+              <option value="todos">Todas as datas</option>
             </select>
           </div>
         </div>
@@ -240,7 +286,9 @@ export default function ReservasAdminPage() {
             style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}
           >
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
-              <p className="font-display text-lg">Reservas de {filtro === "dia" ? diaAtivo.label.toLowerCase() : "todos os dias"}</p>
+              <p className="font-display text-lg">
+                {filtro === "dia" ? `Reservas de ${diaAtivo.label.toLowerCase()}, ${formatarDataCurta(alvo.data)}` : "Reservas de todas as datas"}
+              </p>
               <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>{reservasOrdenadas.length} reserva{reservasOrdenadas.length === 1 ? "" : "s"}</span>
             </div>
 
@@ -258,11 +306,21 @@ export default function ReservasAdminPage() {
             {carregando ? (
               <p className="px-5 py-8 text-sm text-center" style={{ color: "var(--color-text-muted)" }}>Carregando…</p>
             ) : reservasOrdenadas.length === 0 ? (
-              <p className="px-5 py-8 text-sm text-center" style={{ color: "var(--color-text-muted)" }}>Nenhuma reserva ainda pra esse dia.</p>
+              <p className="px-5 py-8 text-sm text-center" style={{ color: "var(--color-text-muted)" }}>
+              {filtro === "dia" ? "Nenhuma reserva ainda pra esse dia." : "Nenhuma reserva encontrada."}
+            </p>
             ) : (
               <div className="flex flex-col">
                 {reservasOrdenadas.map((r, i) => (
-                  <LinhaReserva key={r.id} reserva={r} comBorda={i > 0} focada={r.id === reservaFocoId} minutosAgora={minutosAgora} onFocar={() => focarReserva(r)} />
+                  <LinhaReserva
+                    key={r.id}
+                    reserva={r}
+                    comBorda={i > 0}
+                    focada={r.id === reservaFocoId}
+                    minutosAgora={minutosAgora}
+                    mostrarData={filtro === "todos"}
+                    onFocar={() => focarReserva(r)}
+                  />
                 ))}
               </div>
             )}
@@ -285,6 +343,7 @@ export default function ReservasAdminPage() {
                 <PlantaRestaurante
                   reservas={reservas}
                   dia={diaAtivo.chave}
+                  data={dataAtiva}
                   horario={horarioPlanta}
                   mesaSelecionada={mesaFoco}
                   mesas={mesas}
@@ -371,12 +430,15 @@ function LinhaReserva({
   comBorda,
   focada,
   minutosAgora,
+  mostrarData,
   onFocar,
 }: {
   reserva: Reserva;
   comBorda: boolean;
   focada: boolean;
   minutosAgora: number | null;
+  /** Na lista de várias datas, cada linha diz de qual dia ela é. */
+  mostrarData: boolean;
   onFocar: () => void;
 }) {
   return (
@@ -389,7 +451,14 @@ function LinhaReserva({
         borderLeft: focada ? "3px solid var(--color-primary)" : "3px solid transparent",
       }}
     >
-      <span className="text-[15px] font-semibold tabular-nums w-12 shrink-0">{reserva.horario}</span>
+      <span className="text-[15px] font-semibold tabular-nums w-12 shrink-0">
+        {reserva.horario}
+        {mostrarData && (
+          <span className="block text-[11px] font-medium" style={{ color: "var(--color-text-muted)" }}>
+            {formatarDataCurta(dataDaReserva(reserva))}
+          </span>
+        )}
+      </span>
       <div className="flex-1 min-w-[140px]">
         <span className="text-[16px] font-semibold block truncate">{reserva.nome}</span>
         <span className="text-xs block" style={{ color: "var(--color-text-muted)" }}>{reserva.telefone}</span>

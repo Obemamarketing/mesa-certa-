@@ -2,6 +2,7 @@
 
 import { statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
 import { useMesasConfig } from "@/lib/mesas";
+import { ZONAS_DA_PLANTA } from "@/lib/regras";
 
 const CORES: Record<string, { bg: string; border: string; text: string }> = {
   livre: { bg: "var(--color-accent)", border: "var(--color-accent-dark)", text: "#fff" },
@@ -11,12 +12,9 @@ const CORES: Record<string, { bg: string; border: string; text: string }> = {
   pequena: { bg: "var(--color-border)", border: "var(--color-border)", text: "var(--color-text-muted)" },
 };
 
-const ZONAS: { nome: string; classe: string }[] = [
-  { nome: "Salão principal", classe: "col-span-4" },
-  { nome: "Salão anexo", classe: "col-span-4" },
-  { nome: "Palco", classe: "col-span-4" },
-  { nome: "Área externa", classe: "col-span-4" },
-];
+// as áreas vêm de um lugar só (lib/regras.ts): uma lista copiada aqui ficaria
+// para trás no dia em que aparecer uma área nova
+const ZONAS = ZONAS_DA_PLANTA.map((nome) => ({ nome }));
 
 export default function MesaMapa({
   reservas,

@@ -124,7 +124,9 @@ begin
     raise exception 'Já existe uma mesa com o número %', novo_numero;
   end if;
 
-  -- duas reservas da mesma mesa/dia/horário colidiriam no índice único
+  -- duas reservas da mesma mesa/data/horário colidiriam no índice único.
+  -- A data vem via to_jsonb porque este arquivo pode rodar antes de a coluna
+  -- data_reserva existir (nesse caso vale o dia da semana, como sempre valeu).
   if exists (
     select 1
       from reservas r
@@ -133,7 +135,8 @@ begin
        and exists (
          select 1 from reservas o
           where o.mesa_numero = atual and not o.cancelada
-            and o.dia = r.dia and o.horario = r.horario
+            and coalesce(to_jsonb(o)->>'data_reserva', o.dia) = coalesce(to_jsonb(r)->>'data_reserva', r.dia)
+            and o.horario = r.horario
        )
   ) then
     raise exception 'Há reservas conflitantes no número %', novo_numero;

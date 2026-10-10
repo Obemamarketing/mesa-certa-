@@ -51,13 +51,16 @@ export default function CalendarioPage() {
 
   const fechadoSelecionado = selecionado ? fechados.get(selecionado) : undefined;
 
-  // Reservas já feitas para o dia selecionado: só sabemos a data da PRÓXIMA
-  // ocorrência de cada dia da semana (é a única data aberta para reserva).
+  // Reservas já feitas para a data selecionada. Cada reserva guarda a data
+  // dela; as antigas, sem data gravada, valem na próxima ocorrência do dia da
+  // semana, como sempre foi.
   const reservasDoDia = useMemo(() => {
     if (!selecionado) return 0;
-    const dia = DIAS.find((d) => isoDaData(dataDoDia(d.chave)) === selecionado);
-    if (!dia) return 0;
-    return reservas.filter((r) => r.dia === dia.chave && !r.cancelada).length;
+    return reservas.filter((r) => {
+      if (r.cancelada) return false;
+      if (r.dataReserva) return r.dataReserva === selecionado;
+      return isoDaData(dataDoDia(r.dia)) === selecionado;
+    }).length;
   }, [selecionado, reservas]);
 
   const proximosFechados = useMemo(
