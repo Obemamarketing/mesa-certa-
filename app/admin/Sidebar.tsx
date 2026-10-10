@@ -50,6 +50,16 @@ const ITENS = [
     ),
   },
   {
+    href: "/admin/movimento",
+    label: "Movimento",
+    ativo: (p: string) => p.startsWith("/admin/movimento"),
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin/clientes",
     label: "Clientes",
     ativo: (p: string) => p.startsWith("/admin/clientes"),

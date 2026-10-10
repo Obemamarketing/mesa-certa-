@@ -32,6 +32,15 @@ const ITENS = [
     ),
   },
   {
+    href: "/admin/movimento",
+    label: "Movimento",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin/clientes",
     label: "Clientes",
     icon: (

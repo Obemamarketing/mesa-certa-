@@ -1,5 +1,6 @@
-import EmConstrucao from "../EmConstrucao";
+import { redirect } from "next/navigation";
 
+// "Relatórios" virou "Movimento": o endereço antigo leva para a página nova.
 export default function RelatoriosPage() {
-  return <EmConstrucao titulo="Relatórios" descricao="Histórico e análises de reservas ao longo do tempo." />;
+  redirect("/admin/movimento");
 }

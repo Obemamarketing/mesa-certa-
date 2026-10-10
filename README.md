@@ -6,7 +6,9 @@ Sistema de reservas de mesa para restaurantes. A marca fica em
 - **Cliente** (`/`): escolhe dia, pessoas e mesa na planta, confirma a reserva.
   `/consulta` mostra e cancela a reserva pelo nome.
 - **Administração** (`/admin`): reservas, modo operação (check-in), planta de
-  mesas, calendário de dias fechados, clientes e lembretes por WhatsApp.
+  mesas, calendário de dias fechados, movimento (mesas reservadas e pessoas que
+  vieram, noite a noite e semana contra semana), clientes e lembretes por
+  WhatsApp.
 - **Stack**: Next.js (App Router) · React · Tailwind · Supabase · Vercel.
 
 ## Rodar no computador
