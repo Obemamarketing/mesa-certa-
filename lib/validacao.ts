@@ -6,6 +6,7 @@ export const LIMITES = {
   telefone: 20,
   email: 120,
   observacao: 200,
+  aniversario: 5,
 } as const;
 
 export function soDigitos(texto: string): string {
@@ -39,6 +40,27 @@ export function telefoneInternacional(texto: string): string {
   const digitos = soDigitos(texto);
   if (ehInternacional(texto)) return digitos;
   return digitos.length <= 11 ? `55${digitos}` : digitos;
+}
+
+// Aniversário do cliente: só dia e mês ("12/03"). O ano não é pedido — pra
+// lembrar do aniversário ele não faz falta, e é um dado pessoal a menos guardado.
+
+// Enquanto a pessoa digita: mantém só números e põe a barra sozinho.
+export function mascaraAniversario(texto: string): string {
+  const d = soDigitos(texto).slice(0, 4);
+  return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+}
+
+// Opcional: vazio vale. Preenchido, precisa ser um dia que existe (29/02 vale).
+export function aniversarioValido(texto: string): boolean {
+  const t = texto.trim();
+  if (t === "") return true;
+  const m = /^(\d{2})\/(\d{2})$/.exec(t);
+  if (!m) return false;
+  const dia = Number(m[1]), mes = Number(m[2]);
+  if (mes < 1 || mes > 12 || dia < 1) return false;
+  const diasNoMes = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mes - 1];
+  return dia <= diasNoMes;
 }
 
 // E-mail é opcional: vazio vale. Preenchido, precisa ter cara de e-mail.

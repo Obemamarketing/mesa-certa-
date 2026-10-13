@@ -1,18 +1,17 @@
 "use client";
 
 // Etapa "Escolha sua mesa" no celular. Mesma lógica da versão de desktop
-// (EscolhaMesaDesktop) — planta como referência, escolha pelos cards — mas
-// empilhada: planta em pé no topo, lista embaixo e o botão Continuar sempre
-// colado no rodapé, pra nunca sumir enquanto a pessoa rola a lista.
+// (EscolhaMesaDesktop) — a pessoa escolhe tocando na mesa na planta ou no
+// cartão da lista — mas empilhada: planta em pé no topo, lista embaixo e o
+// botão Continuar sempre colado no rodapé, pra nunca sumir enquanto a pessoa
+// rola a lista.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
-  DIAS,
-  dataDoDia,
-  formatarDataCurta,
+  rotuloDaData,
   situacaoDoGrupo,
   statusMesa,
   type DiaReserva,
@@ -53,6 +52,7 @@ function descricaoDaMesa(mesa: Mesa): string {
 export default function EscolhaMesaMobile({
   reservas,
   dia,
+  data,
   horario,
   pessoas,
   mesasNumeros,
@@ -62,6 +62,8 @@ export default function EscolhaMesaMobile({
 }: {
   reservas: Reserva[];
   dia: DiaReserva;
+  /** Data da reserva ("2026-10-16"): é para ela que as mesas aparecem livres ou ocupadas. */
+  data: string;
   horario: string;
   pessoas: number;
   /** Mesas escolhidas, na ordem em que foram escolhidas. */
@@ -81,7 +83,36 @@ export default function EscolhaMesaMobile({
   const mesaObj = escolhidas.length === 1 ? escolhidas[0] : null;
   const visiveis = area === "todas" ? mesas : mesas.filter((m) => m.zona === area);
   const rotuloLista = area === "todas" ? "Todas as mesas" : `Mesas do ${area.toLowerCase()}`;
-  const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
+  const diaLabel = rotuloDaData(data, true);
+
+  // Toque na mesa da planta: mesma regra dos cartões da lista. Quando não dá
+  // pra escolher (mesa tomada, grupo já acomodado), aparece o motivo.
+  const [aviso, setAviso] = useState<string | null>(null);
+  const relogioDoAviso = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function avisar(texto: string) {
+    setAviso(texto);
+    if (relogioDoAviso.current) clearTimeout(relogioDoAviso.current);
+    relogioDoAviso.current = setTimeout(() => setAviso(null), 4000);
+  }
+  function tocarNaPlanta(numero: string) {
+    const mesa = mesas.find((m) => m.numero === numero);
+    if (!mesa) return;
+    if (mesasNumeros.includes(numero)) {
+      setAviso(null);
+      onAlternar(numero);
+      return;
+    }
+    if (statusMesa(reservas, dia, horario, mesa, undefined, data) !== "livre") {
+      avisar(`A mesa ${numero} já está reservada nessa data.`);
+      return;
+    }
+    if (situacao.cobre) {
+      avisar("Seu grupo já está acomodado. Toque numa mesa escolhida para desmarcar.");
+      return;
+    }
+    setAviso(null);
+    onAlternar(numero);
+  }
 
   return (
     <div className="flex-1 flex flex-col" style={{ background: "var(--color-bg)" }}>
@@ -142,17 +173,36 @@ export default function EscolhaMesaMobile({
           borderBottom: "1px solid var(--color-border)",
         }}
       >
-        <PlantaRestaurante
-          reservas={reservas}
-          dia={dia}
-          horario={horario}
-          mesaSelecionada={null}
-          mesasSelecionadas={mesasNumeros}
-          mesas={mesas}
-          statusSimplificado
-          zoomavel
-        />
-        <div className="mt-3 pt-3 px-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
+        <div className="relative">
+          <PlantaRestaurante
+            reservas={reservas}
+            dia={dia}
+            data={data}
+            horario={horario}
+            mesaSelecionada={null}
+            mesasSelecionadas={mesasNumeros}
+            mesas={mesas}
+            statusSimplificado
+            zoomavel
+            aoSelecionar={tocarNaPlanta}
+            areaDeToque={8}
+          />
+          {/* motivo quando o toque na planta não pôde escolher a mesa */}
+          <div aria-live="polite" className="absolute inset-x-0 bottom-2 flex justify-center px-3 pointer-events-none" style={{ zIndex: 6 }}>
+            {aviso && (
+              <span
+                className="text-[12.5px] font-semibold px-3.5 py-2 text-center leading-snug"
+                style={{ background: "rgba(42,23,18,0.94)", color: "#fff", borderRadius: "11px", boxShadow: "0 5px 14px rgba(0,0,0,0.35)" }}
+              >
+                {aviso}
+              </span>
+            )}
+          </div>
+        </div>
+        <p className="text-[12px] font-medium text-center mt-2.5" style={{ color: "var(--color-primary)" }}>
+          Toque numa mesa verde para escolher. Use + para ampliar.
+        </p>
+        <div className="mt-2.5 pt-3 px-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
           <LegendaPlanta compacta />
         </div>
       </div>
@@ -164,7 +214,7 @@ export default function EscolhaMesaMobile({
             Escolha sua mesa
           </h1>
           <p className="text-[14px] mt-1" style={{ color: "var(--color-text-muted)" }}>
-            Selecione uma área e escolha uma mesa disponível.
+            Toque na mesa na planta acima ou escolha na lista abaixo.
           </p>
           <p className="text-[12.5px] mt-2.5 pt-2.5" style={{ color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)" }}>
             {diaLabel} · {horario} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
@@ -212,7 +262,7 @@ export default function EscolhaMesaMobile({
           <div className="grid grid-cols-4 gap-2">
             {visiveis.map((m) => {
               // sem filtro por capacidade: mesa pequena também serve, o grupo só junta mesas
-              const status = statusMesa(reservas, dia, horario, m);
+              const status = statusMesa(reservas, dia, horario, m, undefined, data);
               const selecionada = mesasNumeros.includes(m.numero);
               // grupo já acomodado: as outras mesas travam, pra ninguém reservar mesa a mais
               const jaAcomodado = situacao.cobre && !selecionada;
@@ -221,6 +271,7 @@ export default function EscolhaMesaMobile({
               return (
                 <button
                   key={m.numero}
+                  data-mesa={m.numero}
                   disabled={indisponivel}
                   onClick={() => onAlternar(m.numero)}
                   aria-pressed={selecionada}
@@ -316,7 +367,7 @@ export default function EscolhaMesaMobile({
             </div>
           ) : (
             <p className="text-[13px] mt-1.5 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-              Escolha uma mesa acima. Ela aparece destacada na planta.
+              Toque numa mesa na planta ou na lista. A escolhida fica destacada nos dois lugares.
             </p>
           )}
 

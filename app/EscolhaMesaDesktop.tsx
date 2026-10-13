@@ -4,18 +4,17 @@
 // container hidden lg:flex em app/page.tsx). A versão mobile dessa etapa
 // continua intacta no page.tsx e não passa por aqui.
 //
-// Divisão da tela: planta do salão à esquerda (referência visual) e painel de
-// seleção à direita (onde o cliente realmente escolhe). Disponibilidade,
+// Divisão da tela: planta do salão à esquerda e painel com a lista de mesas à
+// direita. O cliente escolhe por onde preferir — clicando na mesa na planta ou
+// no cartão da lista; as duas coisas mexem na mesma seleção. Disponibilidade,
 // capacidade e regras vêm do mesmo statusMesa usado no resto do sistema.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
-  DIAS,
-  dataDoDia,
-  formatarDataCurta,
+  rotuloDaData,
   situacaoDoGrupo,
   statusMesa,
   type DiaReserva,
@@ -41,6 +40,7 @@ const ETAPAS = ["Escolha da mesa", "Seus dados", "Confirmação"];
 export default function EscolhaMesaDesktop({
   reservas,
   dia,
+  data,
   horario,
   pessoas,
   mesasNumeros,
@@ -50,6 +50,8 @@ export default function EscolhaMesaDesktop({
 }: {
   reservas: Reserva[];
   dia: DiaReserva;
+  /** Data da reserva ("2026-10-16"): é para ela que as mesas aparecem livres ou ocupadas. */
+  data: string;
   horario: string;
   pessoas: number;
   /** Mesas escolhidas, na ordem em que foram escolhidas. */
@@ -69,7 +71,37 @@ export default function EscolhaMesaDesktop({
   const mesaObj = escolhidas.length === 1 ? escolhidas[0] : null;
   const visiveis = area === "todas" ? mesas : mesas.filter((m) => m.zona === area);
   const rotuloLista = area === "todas" ? "Todas as mesas" : `Mesas do ${area.toLowerCase()}`;
-  const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
+  const diaLabel = rotuloDaData(data, true);
+
+  // Clique na mesa da planta. Mesma regra dos cartões da lista — só que lá o
+  // cartão indisponível fica apagado e desabilitado, e aqui a planta não tem
+  // como "desabilitar" um desenho: quando não dá, aparece o motivo.
+  const [aviso, setAviso] = useState<string | null>(null);
+  const relogioDoAviso = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function avisar(texto: string) {
+    setAviso(texto);
+    if (relogioDoAviso.current) clearTimeout(relogioDoAviso.current);
+    relogioDoAviso.current = setTimeout(() => setAviso(null), 4000);
+  }
+  function tocarNaPlanta(numero: string) {
+    const mesa = mesas.find((m) => m.numero === numero);
+    if (!mesa) return;
+    if (mesasNumeros.includes(numero)) {
+      setAviso(null);
+      onAlternar(numero);
+      return;
+    }
+    if (statusMesa(reservas, dia, horario, mesa, undefined, data) !== "livre") {
+      avisar(`A mesa ${numero} já está reservada nessa data. Escolha outra.`);
+      return;
+    }
+    if (situacao.cobre) {
+      avisar("Seu grupo já está acomodado. Clique numa mesa escolhida para desmarcar e trocar.");
+      return;
+    }
+    setAviso(null);
+    onAlternar(numero);
+  }
 
   return (
     <div className="flex-1 flex flex-col" style={{ background: "var(--color-bg)" }}>
@@ -139,17 +171,36 @@ export default function EscolhaMesaDesktop({
               className="p-5"
               style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "18px" }}
             >
-              <PlantaRestaurante
-                reservas={reservas}
-                dia={dia}
-                horario={horario}
-                mesaSelecionada={null}
-                mesasSelecionadas={mesasNumeros}
-                mesas={mesas}
-                statusSimplificado
-              />
-              <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
+              <div className="relative">
+                <PlantaRestaurante
+                  reservas={reservas}
+                  dia={dia}
+                  data={data}
+                  horario={horario}
+                  mesaSelecionada={null}
+                  mesasSelecionadas={mesasNumeros}
+                  mesas={mesas}
+                  statusSimplificado
+                  aoSelecionar={tocarNaPlanta}
+                  areaDeToque={8}
+                />
+                {/* motivo quando o clique na planta não pôde escolher a mesa */}
+                <div aria-live="polite" className="absolute inset-x-0 bottom-3 flex justify-center px-4 pointer-events-none" style={{ zIndex: 6 }}>
+                  {aviso && (
+                    <span
+                      className="text-[13.5px] font-semibold px-4 py-2.5 text-center"
+                      style={{ background: "rgba(42,23,18,0.94)", color: "#fff", borderRadius: "12px", boxShadow: "0 6px 18px rgba(0,0,0,0.35)" }}
+                    >
+                      {aviso}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 pt-4 flex items-center justify-between gap-4 flex-wrap" style={{ borderTop: "1px solid var(--color-border)" }}>
                 <LegendaPlanta />
+                <span className="text-[12.5px] font-medium" style={{ color: "var(--color-primary)" }}>
+                  Clique numa mesa verde para escolher
+                </span>
               </div>
             </div>
           </div>
@@ -171,8 +222,8 @@ export default function EscolhaMesaDesktop({
               </h1>
               <p className="text-[15px] mt-1.5" style={{ color: "var(--color-text-muted)" }}>
                 {pessoas > 1
-                  ? "A soma dos lugares das mesas precisa cobrir o grupo."
-                  : "Selecione uma área e escolha uma mesa disponível."}
+                  ? "Clique na mesa na planta ou escolha na lista. A soma dos lugares precisa cobrir o grupo."
+                  : "Clique na mesa na planta ou escolha na lista abaixo."}
               </p>
               <p className="text-[13px] mt-3.5 pt-3.5" style={{ color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)" }}>
                 {diaLabel} · {horario} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
@@ -217,7 +268,7 @@ export default function EscolhaMesaDesktop({
               <div className="grid grid-cols-3 gap-2.5">
                 {visiveis.map((m) => {
                   // sem filtro por capacidade: mesa pequena também serve, o grupo só junta mesas
-                  const status = statusMesa(reservas, dia, horario, m);
+                  const status = statusMesa(reservas, dia, horario, m, undefined, data);
                   const selecionada = mesasNumeros.includes(m.numero);
                   // grupo já acomodado: as outras mesas travam, pra ninguém reservar mesa a mais
                   const jaAcomodado = situacao.cobre && !selecionada;
@@ -226,6 +277,7 @@ export default function EscolhaMesaDesktop({
                   return (
                     <button
                       key={m.numero}
+                      data-mesa={m.numero}
                       disabled={indisponivel}
                       onClick={() => onAlternar(m.numero)}
                       title={jaAcomodado ? "Seu grupo já está acomodado. Desmarque uma mesa para trocar." : undefined}
@@ -330,7 +382,7 @@ export default function EscolhaMesaDesktop({
                 </div>
               ) : (
                 <p className="text-[13.5px] leading-snug" style={{ color: "var(--color-text-muted)" }}>
-                  Escolha uma mesa na lista. Ela aparece destacada na planta ao lado.
+                  Clique numa mesa na planta ou escolha na lista. A mesa escolhida fica destacada nos dois lugares.
                 </p>
               )}
 

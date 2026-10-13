@@ -19,6 +19,7 @@ const ZONAS = ZONAS_DA_PLANTA.map((nome) => ({ nome }));
 export default function MesaMapa({
   reservas,
   dia,
+  data,
   horario,
   pessoasMin,
   mesaSelecionada,
@@ -30,6 +31,8 @@ export default function MesaMapa({
 }: {
   reservas: Reserva[];
   dia: DiaReserva;
+  /** Data mostrada ("2026-10-16"). Sem ela vale a próxima ocorrência do dia da semana. */
+  data?: string;
   horario: string;
   pessoasMin?: number;
   mesaSelecionada?: string | null;
@@ -53,7 +56,7 @@ export default function MesaMapa({
             </span>
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
               {mesasDaZona.map((m) => {
-                const status = statusMesa(reservas, dia, horario, m, pessoasMin);
+                const status = statusMesa(reservas, dia, horario, m, pessoasMin, data);
                 const selecionada = mesaSelecionada === m.numero;
                 const cor = selecionada ? CORES.selecionada : CORES[status];
                 const clicavel = !somenteLeitura && ((onSelecionar && (status === "livre" || selecionada)) || onInspecionar);

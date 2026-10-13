@@ -25,8 +25,9 @@ Antes de publicar: `npm run lint`, `npx tsc --noEmit` e `npm run build`.
 
 1. Rode `supabase-schema.sql` (tabela `reservas`) — só na primeira vez.
 2. Rode `supabase-completo.sql` no SQL Editor. Ele junta, na ordem certa,
-   todas as migrações (observação, check-in, lembretes, planta, dias fechados e
-   reservas por data) e **pode ser rodado de novo sem perder dados**.
+   todas as migrações (observação, check-in, lembretes, planta, dias fechados,
+   reservas por data e agenda de dois meses com aniversário) e **pode ser rodado
+   de novo sem perder dados**.
 3. `supabase-cron-lembretes.sql` fica de fora: só rode depois do deploy, com o
    `CRON_SECRET` definido na Vercel.
 
@@ -35,8 +36,12 @@ Cada migração também existe separada (`supabase-migration-*.sql`) para consul
 ## Como a reserva funciona
 
 - O restaurante recebe reservas **sexta, sábado e domingo, às 19h30**.
-- A reserva guarda a **data** (`data_reserva`). No próprio dia da semana, o
-  cliente reserva para a semana seguinte.
+- O cliente escolhe a **data** (`data_reserva`): qualquer sexta, sábado ou
+  domingo, de amanhã até 60 dias à frente (`ANTECEDENCIA_DIAS` em
+  `lib/regras.ts`). A tela inicial lista só as próximas datas; as demais ficam
+  no calendário. O banco confere a data escolhida.
+- A mesa pode ser escolhida clicando nela na planta ou na lista de mesas.
+- A reserva pode guardar o aniversário do cliente (só dia e mês).
 - Uma mesa só pode ter uma reserva ativa por data e horário (índice único no
   banco). Grupo grande escolhe várias mesas: cada mesa vira uma reserva.
 - O horário e a data de referência são sempre os de **São Paulo**.

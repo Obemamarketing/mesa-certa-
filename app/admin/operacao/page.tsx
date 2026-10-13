@@ -101,7 +101,7 @@ export default function ModoOperacaoPage() {
 
   return (
     <>
-      {modalAberto && <NewReservationModal reservas={reservas} diaInicial={dia} onFechar={() => setModalAberto(false)} />}
+      {modalAberto && <NewReservationModal reservas={reservas} dataInicial={dataOperacao} onFechar={() => setModalAberto(false)} />}
 
       <div className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-10 py-6 flex flex-col gap-5">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">

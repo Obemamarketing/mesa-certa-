@@ -5,8 +5,9 @@
 // celular), no painel Mesas e no modo operação — o que muda é só o
 // comportamento, controlado por props:
 //
-//   sem aoSelecionar  → referência visual (cliente): marcadores não clicáveis
-//   com aoSelecionar  → marcadores clicáveis para consultar (painel e operação)
+//   sem aoSelecionar  → só referência visual: marcadores não clicáveis
+//   com aoSelecionar  → marcadores clicáveis: o cliente escolhe a mesa direto na
+//                       planta; o painel e a operação consultam a mesa
 //   com aoMover       → modo calibração: arrasta o marcador até encaixar na
 //                       mesa desenhada (só no painel Mesas)
 //   zoomavel          → botões, pinça e arrastar (celular)
@@ -71,6 +72,7 @@ export default function PlantaRestaurante({
   statusSimplificado = false,
   destaque = "cor",
   zoomavel = false,
+  areaDeToque = TAMANHO_MARCADOR,
 }: {
   reservas: Reserva[];
   dia: DiaReserva;
@@ -97,6 +99,11 @@ export default function PlantaRestaurante({
   destaque?: "cor" | "anel";
   /** Habilita botões, pinça e arrastar para ampliar (celular). */
   zoomavel?: boolean;
+  /** Largura da área clicável de cada mesa, em % da largura da planta. O
+   *  desenho do marcador não muda de tamanho — só a área que aceita o toque,
+   *  que no celular precisa ser maior que o quadradinho pra dar pra acertar
+   *  com o dedo. Até 8 as áreas de mesas vizinhas não se encostam. */
+  areaDeToque?: number;
 }) {
   const editavel = Boolean(aoMover);
   const marcadas = mesasSelecionadas ?? (mesaSelecionada ? [mesaSelecionada] : []);
@@ -280,19 +287,25 @@ export default function PlantaRestaurante({
           const estado: EstadoMarcador = escolhida && destaque === "cor" ? "selecionada" : status;
           const cor = CORES[estado];
           const interativo = Boolean(aoSelecionar) || editavel;
+          // na calibração a área é exatamente o marcador: é ele que se arrasta
+          const area = interativo && !editavel ? Math.max(areaDeToque, TAMANHO_MARCADOR) : TAMANHO_MARCADOR;
 
           const caixa: CSSProperties = {
             position: "absolute",
             left: `${m.x}%`,
             top: `${m.y}%`,
-            width: `${TAMANHO_MARCADOR}%`,
+            width: `${area}%`,
             aspectRatio: "1",
             transform: "translate(-50%, -50%)",
             padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           };
 
           const rotulo = (
-            <>
+            // o desenho do marcador, sempre do mesmo tamanho, no centro da área
+            <span style={{ position: "relative", display: "block", width: `${(TAMANHO_MARCADOR / area) * 100}%`, aspectRatio: "1" }}>
               {escolhida && (
                 // halo que pulsa: leva o olho direto à mesa escolhida
                 <span
@@ -337,8 +350,13 @@ export default function PlantaRestaurante({
               >
                 {m.numero}
               </span>
-            </>
+            </span>
           );
+
+          // na tela do cliente, mesa tomada não parece clicável (quem decide o
+          // que acontece no clique é a tela, que também explica o motivo)
+          const indisponivel = statusSimplificado && !escolhida && status !== "livre";
+          const situacaoFalada = escolhida ? "selecionada" : status === "livre" ? "disponível" : "indisponível";
 
           if (!interativo) {
             return (
@@ -352,7 +370,7 @@ export default function PlantaRestaurante({
             <button
               key={m.numero}
               type="button"
-              aria-label={`Mesa ${m.numero}, ${m.capacidade} lugares, ${m.zona}`}
+              aria-label={`Mesa ${m.numero}, ${m.capacidade} lugares, ${m.zona}${statusNeutro ? "" : `, ${situacaoFalada}`}`}
               aria-pressed={escolhida}
               onPointerDown={editavel ? (e) => pegar(e, m) : undefined}
               onClick={!editavel && aoSelecionar ? () => aoSelecionar(m.numero) : undefined}
@@ -360,7 +378,7 @@ export default function PlantaRestaurante({
                 ...caixa,
                 background: "transparent",
                 border: 0,
-                cursor: editavel ? "grab" : "pointer",
+                cursor: editavel ? "grab" : indisponivel ? "not-allowed" : "pointer",
                 touchAction: editavel ? "none" : undefined,
                 zIndex: escolhida ? 3 : 2,
               }}

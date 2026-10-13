@@ -70,6 +70,14 @@ export const HORARIO_FIXO = "19:30";
 // Tolerância de chegada após o horário da reserva.
 export const TOLERANCIA_MINUTOS = 20;
 
+// Até quantos dias à frente o cliente pode reservar (dois meses). O banco
+// confere a mesma regra, com dois dias de folga (supabase-migration-agenda.sql).
+export const ANTECEDENCIA_DIAS = 60;
+
+// Quantas datas aparecem direto na lista da tela inicial. As demais ficam no
+// calendário ("Escolher outra data"), pra lista não virar um painel enorme.
+export const DATAS_NA_LISTA = 6;
+
 export function minutosDoHorario(horario: string): number {
   const [hh, mm] = horario.split(":").map(Number);
   return hh * 60 + mm;

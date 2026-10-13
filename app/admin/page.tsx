@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
+  ANTECEDENCIA_DIAS,
   DIAS,
   HORARIO_FIXO,
   cancelarReserva,
   dataDaReserva,
-  dataDoIso,
   dataHoje,
+  datasDeFuncionamento,
   desfazerCheckin,
   fazerCheckin,
   formatarDataCurta,
@@ -20,11 +21,12 @@ import {
   reservaNaData,
   statusChegada,
   useReservas,
-  type DiaReserva,
   type Reserva,
 } from "@/lib/reservas";
 import { useAgora } from "@/lib/relogio";
+import { useDiasFechados } from "@/lib/diasFechados";
 import PlantaRestaurante, { LegendaPlanta } from "../PlantaRestaurante";
+import SeletorDeData from "../SeletorDeData";
 import { useMesasConfig } from "@/lib/mesas";
 import DetalheMesaConteudo from "./DetalheMesa";
 import StatCard from "./StatCard";
@@ -47,24 +49,12 @@ const ICONE_NOTA = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /><path d="M9.5 13h5M9.5 16.5h5" /></svg>
 );
 
-// As próximas datas em que o restaurante abre, hoje incluído. O painel navega
-// por elas — "sexta 16/10", "sábado 17/10", "domingo 18/10", "sexta 23/10"… —
-// em vez de "sexta/sábado/domingo" soltos, que misturavam semanas diferentes.
-function proximasDatasDeServico(base: Date, quantidade: number): { iso: string; dia: DiaReserva; data: Date }[] {
-  const lista: { iso: string; dia: DiaReserva; data: Date }[] = [];
-  for (let i = 0; lista.length < quantidade && i < 60; i++) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    const dia = DIAS.find((x) => x.diaSemana === d.getDay());
-    if (dia) lista.push({ iso: isoDaData(d), dia: dia.chave, data: d });
-  }
-  return lista;
-}
-
 export default function ReservasAdminPage() {
   const { reservas, carregando } = useReservas();
   const { mesas } = useMesasConfig();
+  const { fechados } = useDiasFechados();
   const [indiceData, setIndiceData] = useState(0);
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [painelMobile, setPainelMobile] = useState<"planta" | "reservas" | "lista">("planta");
   const [horarioPlanta, setHorarioPlanta] = useState(HORARIO_FIXO);
   const [busca, setBusca] = useState("");
@@ -81,7 +71,11 @@ export default function ReservasAdminPage() {
   const minutosAgora = relogio ? relogio.minutos : null;
   const hojeIso = relogio ? relogio.iso : isoDaData(dataHoje());
 
-  const datas = useMemo(() => proximasDatasDeServico(dataDoIso(hojeIso), 9), [hojeIso]);
+  // As datas em que o restaurante abre, de hoje até o fim da agenda (o cliente
+  // reserva até dois meses à frente). O painel navega por elas — "sexta 16/10",
+  // "sábado 17/10", "domingo 18/10", "sexta 23/10"… — pelas setas ou pelo
+  // calendário, em vez de "sexta/sábado/domingo" soltos, que misturavam semanas.
+  const datas = useMemo(() => datasDeFuncionamento(hojeIso, ANTECEDENCIA_DIAS + 2), [hojeIso]);
   const alvo = datas[Math.min(indiceData, datas.length - 1)];
   const diaAtivo = DIAS.find((d) => d.chave === alvo.dia)!;
   const dataAtiva = alvo.iso;
@@ -171,7 +165,23 @@ export default function ReservasAdminPage() {
 
   return (
     <>
-      {modalAberto && <NewReservationModal reservas={reservas} diaInicial={diaAtivo.chave} onFechar={() => setModalAberto(false)} />}
+      {modalAberto && <NewReservationModal reservas={reservas} dataInicial={dataAtiva} onFechar={() => setModalAberto(false)} />}
+      {calendarioAberto && (
+        <SeletorDeData
+          datas={datas}
+          // aqui o calendário é só pra navegar: dia fechado também pode ser aberto, pra ver o que há nele
+          fechados={new Map()}
+          selecionada={dataAtiva}
+          aoEscolher={(iso) => {
+            setIndiceData(Math.max(0, datas.findIndex((d) => d.iso === iso)));
+            setMesaFoco(null);
+            setReservaFocoId(null);
+            setCalendarioAberto(false);
+          }}
+          aoFechar={() => setCalendarioAberto(false)}
+          titulo="Ir para a data"
+        />
+      )}
       <div className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-10 py-7 flex flex-col gap-6">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -190,10 +200,18 @@ export default function ReservasAdminPage() {
                 className="w-7 h-7 flex items-center justify-center shrink-0 disabled:opacity-30"
                 style={{ color: "var(--color-text-muted)" }}
               >‹</button>
-              <span className="text-sm font-medium px-2 text-center whitespace-nowrap flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCalendarioAberto(true)}
+                title="Abrir o calendário"
+                className="text-sm font-medium px-2 text-center whitespace-nowrap flex items-center gap-1.5"
+              >
                 {ICONE_CALENDARIO}
                 {diaAtivo.label}, {formatarDataCurta(alvo.data)}
-              </span>
+                {fechados.has(dataAtiva) && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--color-primary)", color: "#fff" }}>fechado</span>
+                )}
+              </button>
               <button
                 onClick={() => { setIndiceData((i) => Math.min(datas.length - 1, i + 1)); setMesaFoco(null); setReservaFocoId(null); }}
                 disabled={indiceData >= datas.length - 1}

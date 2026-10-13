@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { HORARIO_FIXO, TOLERANCIA_MINUTOS, mesas, minutosDoHorario, type Mesa } from "./regras";
+import { ANTECEDENCIA_DIAS, HORARIO_FIXO, TOLERANCIA_MINUTOS, mesas, minutosDoHorario, type Mesa } from "./regras";
 import { soDigitos } from "./validacao";
 
-export { HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, distribuirPessoas, horaLimiteDaTolerancia, listaDeMesas, lugaresDasMesas, lugaresQueFaltam, mesas, minutosDoHorario, situacaoDoGrupo } from "./regras";
+export { ANTECEDENCIA_DIAS, DATAS_NA_LISTA, HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, distribuirPessoas, horaLimiteDaTolerancia, listaDeMesas, lugaresDasMesas, lugaresQueFaltam, mesas, minutosDoHorario, situacaoDoGrupo } from "./regras";
 export type { MesaDoGrupo } from "./regras";
 export type { FormatoMesa, Mesa, ZonaMesa } from "./regras";
 
@@ -89,6 +89,44 @@ export function dataDoIso(iso: string): Date {
   return new Date(ano, mes - 1, dia);
 }
 
+// ---------------------------------------------------------------------------
+// Agenda: as datas em que dá pra reservar
+// ---------------------------------------------------------------------------
+// O cliente reserva por DATA (não mais só "a próxima sexta"): qualquer dia de
+// funcionamento de amanhã até ANTECEDENCIA_DIAS à frente. O próprio dia de hoje
+// continua de fora, como sempre foi. O banco confere a mesma regra.
+
+export type DataDisponivel = { iso: string; dia: DiaReserva; data: Date };
+
+// sexta/sábado/domingo de uma data, ou undefined se o restaurante não abre nela
+export function diaDaData(iso: string): DiaReserva | undefined {
+  const dow = dataDoIso(iso).getDay();
+  return DIAS.find((d) => d.diaSemana === dow)?.chave;
+}
+
+// Dias de funcionamento a partir de `deIso` (incluído), por `quantosDias` dias.
+export function datasDeFuncionamento(deIso: string, quantosDias: number): DataDisponivel[] {
+  const lista: DataDisponivel[] = [];
+  const base = dataDoIso(deIso);
+  for (let i = 0; i <= quantosDias; i++) {
+    const data = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const dia = DIAS.find((d) => d.diaSemana === data.getDay());
+    if (dia) lista.push({ iso: isoDaData(data), dia: dia.chave, data });
+  }
+  return lista;
+}
+
+// As datas que o CLIENTE pode reservar: de amanhã até dois meses à frente.
+export function datasParaReserva(hojeIso: string): DataDisponivel[] {
+  return datasDeFuncionamento(hojeIso, ANTECEDENCIA_DIAS).filter((d) => d.iso > hojeIso);
+}
+
+// "Sexta, 16/10" (curto) ou "Sexta-feira, 16/10"
+export function rotuloDaData(iso: string, curto = false): string {
+  const label = DIAS.find((d) => d.chave === diaDaData(iso))?.label ?? "";
+  return `${curto ? label.split("-")[0] : label}, ${formatarDataCurta(dataDoIso(iso))}`;
+}
+
 export type Reserva = {
   id: string;
   dia: DiaReserva;
@@ -100,6 +138,8 @@ export type Reserva = {
   nome: string;
   telefone: string;
   email?: string;
+  /** Aniversário do cliente, só dia e mês ("12/03"). Opcional. */
+  aniversario?: string;
   observacao?: string;
   criadaEm: number;
   cancelada?: boolean;
@@ -116,6 +156,7 @@ type ReservaRow = {
   nome: string;
   telefone: string;
   email: string | null;
+  aniversario?: string | null;
   observacao: string | null;
   criada_em: string;
   cancelada: boolean;
@@ -133,6 +174,7 @@ function daRow(row: ReservaRow): Reserva {
     nome: row.nome,
     telefone: row.telefone,
     email: row.email ?? undefined,
+    aniversario: row.aniversario ?? undefined,
     observacao: row.observacao ?? undefined,
     criadaEm: new Date(row.criada_em).getTime(),
     cancelada: row.cancelada,
@@ -220,24 +262,41 @@ async function buscarReservas(): Promise<Reserva[]> {
 export async function criarReserva(
   dados: Omit<Reserva, "id" | "criadaEm">
 ): Promise<{ reserva: Reserva | null; erro?: string }> {
-  const { data, error } = await supabase
-    .from("reservas")
-    .insert({
-      dia: dados.dia,
-      horario: dados.horario,
-      mesa_numero: dados.mesaNumero,
-      pessoas: dados.pessoas,
-      nome: dados.nome,
-      telefone: dados.telefone,
-      email: dados.email ?? null,
-      observacao: dados.observacao ?? null,
-    })
-    .select()
-    .single();
+  const linha: Record<string, unknown> = {
+    dia: dados.dia,
+    horario: dados.horario,
+    mesa_numero: dados.mesaNumero,
+    pessoas: dados.pessoas,
+    nome: dados.nome,
+    telefone: dados.telefone,
+    email: dados.email ?? null,
+    observacao: dados.observacao ?? null,
+  };
+  // A data escolhida vai junto. Sem ela, o banco calcula a próxima ocorrência do
+  // dia da semana, como sempre fez.
+  if (dados.dataReserva) linha.data_reserva = dados.dataReserva;
+  if (dados.aniversario) linha.aniversario = dados.aniversario;
+
+  let { data, error } = await supabase.from("reservas").insert(linha).select().single();
+
+  // Banco ainda sem a coluna "aniversario" (supabase-migration-agenda.sql por
+  // rodar): a reserva não pode deixar de ser feita por causa disso — grava sem
+  // o aniversário.
+  if (error && "aniversario" in linha && /aniversario/i.test(error.message) && (error.code === "PGRST204" || error.code === "42703")) {
+    console.error("Coluna 'aniversario' ausente no banco; reserva gravada sem ela. Rode supabase-migration-agenda.sql.");
+    delete linha.aniversario;
+    ({ data, error } = await supabase.from("reservas").insert(linha).select().single());
+  }
 
   if (error) {
     if (/RESTAURANTE_FECHADO/.test(error.message)) {
       return { reserva: null, erro: "O restaurante estará fechado nesta data. Escolha outro dia." };
+    }
+    if (/DATA_FORA_DA_AGENDA/.test(error.message)) {
+      return { reserva: null, erro: "Essa data não está mais disponível para reserva. Volte e escolha outra data." };
+    }
+    if (/reservas_aniversario_valido/.test(error.message)) {
+      return { reserva: null, erro: "A data de aniversário não é válida. Use dia e mês, por exemplo 12/03." };
     }
     if (error.code === "23505") {
       return { reserva: null, erro: "Essa mesa acabou de ser reservada por outra pessoa. Escolha outra." };
@@ -387,7 +446,7 @@ function chaveDoTelefone(telefone: string): string {
 }
 
 // CRM simples: agrupa reservas pelo telefone.
-export type Cliente = { nome: string; telefone: string; email?: string; totalReservas: number };
+export type Cliente = { nome: string; telefone: string; email?: string; aniversario?: string; totalReservas: number };
 
 export function listarClientes(reservas: Reserva[]): Cliente[] {
   const mapa = new Map<string, Cliente>();
@@ -397,11 +456,27 @@ export function listarClientes(reservas: Reserva[]): Cliente[] {
     if (existente) {
       existente.totalReservas += 1;
       if (r.email) existente.email = r.email;
+      if (r.aniversario) existente.aniversario = r.aniversario;
     } else {
-      mapa.set(chave, { nome: r.nome, telefone: r.telefone, email: r.email, totalReservas: 1 });
+      mapa.set(chave, { nome: r.nome, telefone: r.telefone, email: r.email, aniversario: r.aniversario, totalReservas: 1 });
     }
   }
   return Array.from(mapa.values()).sort((a, b) => b.totalReservas - a.totalReservas);
+}
+
+// Quantos dias faltam (ou passaram, se negativo) entre uma data e o aniversário
+// "dd/mm" mais próximo dela. Serve pra avisar "aniversário perto da reserva".
+export function diasAteAniversario(aniversario: string, dataIso: string): number | null {
+  const m = /^(\d{2})\/(\d{2})$/.exec(aniversario);
+  if (!m) return null;
+  const ref = dataDoIso(dataIso);
+  let melhor: number | null = null;
+  for (const ano of [ref.getFullYear() - 1, ref.getFullYear(), ref.getFullYear() + 1]) {
+    const niver = new Date(ano, Number(m[2]) - 1, Number(m[1]));
+    const dif = Math.round((niver.getTime() - ref.getTime()) / 86_400_000);
+    if (melhor === null || Math.abs(dif) < Math.abs(melhor)) melhor = dif;
+  }
+  return melhor;
 }
 
 // Histórico básico de um cliente (não é CRM — só a lista de reservas dele,

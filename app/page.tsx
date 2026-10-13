@@ -1,32 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
 import { baixarIcsDaReserva } from "@/lib/ics";
 import {
+  DATAS_NA_LISTA,
   DIAS,
   HORARIO_FIXO,
   TOLERANCIA_MINUTOS,
   criarReserva,
-  dataDoDia,
   cancelarReserva,
-  isoDaData,
+  dataDoIso,
+  datasParaReserva,
+  diaDaData,
   formatarDataCurta,
   listaDeMesas,
+  relogioSaoPaulo,
+  rotuloDaData,
   rotuloDaReserva,
   situacaoDoGrupo,
+  statusMesa,
   useReservas,
+  type DataDisponivel,
   type DiaReserva,
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
-import { LIMITES, emailValido, telefoneValido } from "@/lib/validacao";
+import { LIMITES, aniversarioValido, emailValido, mascaraAniversario, telefoneValido } from "@/lib/validacao";
+import { useAgora } from "@/lib/relogio";
 import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
 import EscolhaMesaMobile from "./EscolhaMesaMobile";
 import MenuMobile from "./MenuMobile";
+import SeletorDeData from "./SeletorDeData";
 import { useDiasFechados, type DiaFechado } from "@/lib/diasFechados";
 import { useMesasConfig } from "@/lib/mesas";
 
@@ -47,12 +55,30 @@ export default function ReservasPage() {
   const { reservas } = useReservas();
   const { mesas } = useMesasConfig();
   const { fechados } = useDiasFechados();
-  // dia da semana → registro de fechamento da PRÓXIMA data desse dia (ou nada)
-  const fechadosPorDia = Object.fromEntries(
-    DIAS.map((d) => [d.chave, fechados.get(isoDaData(dataDoDia(d.chave)))]),
-  ) as Record<DiaReserva, DiaFechado | undefined>;
-  const [etapa, setEtapa] = useState<Etapa>("inicio");
-  const [dia, setDia] = useState<DiaReserva>("sexta");
+  const [etapaEscolhida, setEtapa] = useState<Etapa>("inicio");
+
+  // Agenda: o cliente reserva por DATA, de amanhã até dois meses à frente.
+  // "Hoje" é o do restaurante (São Paulo) e só existe depois que a tela monta
+  // no navegador — a página é gerada antes, e a data de quando ela foi gerada
+  // não serve pra ninguém.
+  const agora = useAgora(60000);
+  const hojeIso = agora ? relogioSaoPaulo(agora).iso : null;
+  const datas = useMemo(() => (hojeIso ? datasParaReserva(hojeIso) : []), [hojeIso]);
+  const [dataEscolhida, setDataEscolhida] = useState<string | null>(null);
+  // sem escolha (ou com a escolha fora da agenda): a primeira data aberta
+  const data: string | null =
+    (dataEscolhida && datas.some((d) => d.iso === dataEscolhida) ? dataEscolhida : null) ??
+    datas.find((d) => !fechados.has(d.iso))?.iso ??
+    datas[0]?.iso ??
+    null;
+  const dia: DiaReserva = (data && diaDaData(data)) || "sexta";
+  // sem data não existe etapa seguinte: volta pro começo
+  const etapa: Etapa = !data && etapaEscolhida !== "confirmada" ? "inicio" : etapaEscolhida;
+  const rotuloData = data ? rotuloDaData(data) : "";
+  const rotuloDataExtenso = data
+    ? `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoIso(data).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`
+    : "";
+
   const [pessoas, setPessoas] = useState(2);
   const [pessoasCustom, setPessoasCustom] = useState(false);
   const horario = HORARIO_FIXO;
@@ -62,6 +88,7 @@ export default function ReservasPage() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
+  const [aniversario, setAniversario] = useState("");
   const [observacao, setObservacao] = useState("");
   // uma reserva por mesa: um grupo de 7 em duas mesas gera duas reservas
   const [reservasFeitas, setReservasFeitas] = useState<Reserva[]>([]);
@@ -82,15 +109,21 @@ export default function ReservasPage() {
   const nomeOk = nome.trim().length >= 2;
   const telefoneOk = telefoneValido(telefone);
   const emailOk = emailValido(email);
-  const dadosOk = nomeOk && telefoneOk && emailOk;
+  // aniversário é opcional (só dia e mês); se a pessoa começou a preencher, tem que terminar certo
+  const aniversarioOk = aniversarioValido(aniversario);
+  const dadosOk = nomeOk && telefoneOk && emailOk && aniversarioOk;
   const avisoTelefone = telefone.trim() && !telefoneOk ? "Confira o número: DDD + telefone, por exemplo (41) 99999-9999." : null;
   const avisoEmail = email.trim() && !emailOk ? "Esse e-mail parece incompleto." : null;
+  const avisoAniversario = !aniversario || aniversarioOk ? null : aniversario.length < 5 ? "Complete com dia e mês: dd/mm." : "Essa data não existe. Use dia e mês, por exemplo 12/03.";
 
   // Escolhe ou desmarca. Com o grupo já acomodado não entra mesa nova: ninguém
-  // reserva mesa a mais do que precisa.
+  // reserva mesa a mais do que precisa. E só entra mesa livre NESSA data — o
+  // clique pode vir da planta, onde nenhum desenho fica "desabilitado".
   function alternarMesa(numero: string) {
+    const mesa = mesas.find((m) => m.numero === numero);
     setMesasNumeros((atual) => {
       if (atual.includes(numero)) return atual.filter((n) => n !== numero);
+      if (!mesa || !data || statusMesa(reservas, dia, horario, mesa, undefined, data) !== "livre") return atual;
       const atuais = atual
         .map((n) => mesas.find((m) => m.numero === n))
         .filter((m): m is NonNullable<typeof m> => Boolean(m));
@@ -100,7 +133,7 @@ export default function ReservasPage() {
   }
 
   async function confirmar() {
-    if (!situacao.cobre || !dadosOk || enviando) return;
+    if (!situacao.cobre || !dadosOk || enviando || !data) return;
     setEnviando(true);
     setErro(null);
 
@@ -111,12 +144,14 @@ export default function ReservasPage() {
     for (const parte of situacao.partes) {
       const { reserva, erro: mensagemErro } = await criarReserva({
         dia,
+        dataReserva: data,
         horario,
         mesaNumero: parte.numero,
         pessoas: parte.pessoas,
         nome: nome.trim(),
         telefone: telefone.trim(),
         email: email.trim() || undefined,
+        aniversario: aniversario.trim() || undefined,
         observacao: observacao.trim() || undefined,
       });
       if (!reserva) {
@@ -152,6 +187,7 @@ export default function ReservasPage() {
     setNome("");
     setTelefone("");
     setEmail("");
+    setAniversario("");
     setObservacao("");
     setReservasFeitas([]);
     setErro(null);
@@ -160,20 +196,21 @@ export default function ReservasPage() {
   if (etapa === "inicio") {
     return (
       <TelaInicio
-        dia={dia}
-        setDia={(d) => { setDia(d); setMesasNumeros([]); }}
+        datas={datas}
+        data={data}
+        setData={(iso) => { setDataEscolhida(iso); setMesasNumeros([]); }}
+        fechados={fechados}
         pessoas={pessoas}
         setPessoas={(n) => { setPessoas(n); setMesasNumeros([]); }}
         pessoasCustom={pessoasCustom}
         setPessoasCustom={setPessoasCustom}
-        fechadosPorDia={fechadosPorDia}
         onBuscar={() => setEtapa("horario")}
       />
     );
   }
 
   if (etapa === "horario") {
-    const diaLabelCompleto = `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoDia(dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`;
+    const diaLabelCompleto = rotuloDataExtenso;
     const textoTolerancia = `As reservas são realizadas exclusivamente às 19h30. Pedimos que chegue com até ${TOLERANCIA_MINUTOS} minutos de tolerância para garantir sua reserva.`;
 
     return (
@@ -193,7 +230,7 @@ export default function ReservasPage() {
               <div>
                 <h1 className="font-display text-2xl">Sua reserva</h1>
                 <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
-                  {DIAS.find((d) => d.chave === dia)?.label}, {formatarDataCurta(dataDoDia(dia))} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
+                  {rotuloData} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}
                 </p>
               </div>
 
@@ -281,6 +318,7 @@ export default function ReservasPage() {
           <EscolhaMesaMobile
             reservas={reservas}
             dia={dia}
+            data={data ?? ""}
             horario={horario}
             pessoas={pessoas}
             mesasNumeros={mesasNumeros}
@@ -295,6 +333,7 @@ export default function ReservasPage() {
           <EscolhaMesaDesktop
             reservas={reservas}
             dia={dia}
+            data={data ?? ""}
             horario={horario}
             pessoas={pessoas}
             mesasNumeros={mesasNumeros}
@@ -308,7 +347,7 @@ export default function ReservasPage() {
   }
 
   if (etapa === "dados") {
-    const diaLabelCompleto = horario && `${DIAS.find((d) => d.chave === dia)?.label}, ${dataDoDia(dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}`;
+    const diaLabelCompleto = rotuloDataExtenso;
 
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
@@ -338,6 +377,9 @@ export default function ReservasPage() {
                 </Campo>
                 <Campo label="E-mail (opcional)" aviso={avisoEmail}>
                   <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" maxLength={LIMITES.email} autoComplete="email" className="w-full outline-none text-sm bg-transparent" />
+                </Campo>
+                <Campo label="Aniversário — dia e mês (opcional)" aviso={avisoAniversario}>
+                  <input value={aniversario} onChange={(e) => setAniversario(mascaraAniversario(e.target.value))} placeholder="dd/mm" inputMode="numeric" maxLength={LIMITES.aniversario} autoComplete="off" aria-label="Aniversário, dia e mês" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
                 <Campo label="Observação (opcional)">
                   <textarea
@@ -399,12 +441,15 @@ export default function ReservasPage() {
                     <CampoDesktop label="Nome completo">
                       <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                     </CampoDesktop>
-                    <div className="grid grid-cols-2 gap-4 items-start">
+                    <div className="grid grid-cols-[1fr_1fr_210px] gap-4 items-start">
                       <CampoDesktop label="WhatsApp" aviso={avisoTelefone}>
                         <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                       </CampoDesktop>
                       <CampoDesktop label="E-mail (opcional)" aviso={avisoEmail}>
                         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" maxLength={LIMITES.email} autoComplete="email" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      </CampoDesktop>
+                      <CampoDesktop label="Aniversário (opcional)" aviso={avisoAniversario}>
+                        <input value={aniversario} onChange={(e) => setAniversario(mascaraAniversario(e.target.value))} placeholder="dd/mm" inputMode="numeric" maxLength={LIMITES.aniversario} autoComplete="off" aria-label="Aniversário, dia e mês" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                       </CampoDesktop>
                     </div>
                     <CampoDesktop label="Observação (opcional)">
@@ -494,7 +539,7 @@ export default function ReservasPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-2.5 p-5" style={{ background: "var(--color-surface)" }}>
-                <Linha label="Data" valor={`${DIAS.find((d) => d.chave === dia)?.label}, ${formatarDataCurta(dataDoDia(dia))}`} />
+                <Linha label="Data" valor={rotuloData} />
                 <Linha label="Horário" valor={horario} />
                 <Linha label="Pessoas" valor={`${pessoas} pessoa${pessoas === 1 ? "" : "s"}`} />
                 <Linha label={escolhidas.length > 1 ? "Mesas" : "Mesa"} valor={tituloMesas.replace(/^Mesas? /, "")} />
@@ -505,6 +550,7 @@ export default function ReservasPage() {
                 <div style={{ borderTop: "1px solid var(--color-border)" }} className="pt-2.5 mt-1 flex flex-col gap-2.5">
                   <Linha label="Nome" valor={nome} />
                   <Linha label="WhatsApp" valor={telefone} />
+                  {aniversario && <Linha label="Aniversário" valor={aniversario} />}
                   {observacao && <Linha label="Observação" valor={observacao} />}
                 </div>
               </div>
@@ -832,26 +878,31 @@ function CampoPessoas({
 }
 
 function TelaInicio({
-  dia,
-  setDia,
+  datas,
+  data,
+  setData,
+  fechados,
   pessoas,
   setPessoas,
   pessoasCustom,
   setPessoasCustom,
-  fechadosPorDia,
   onBuscar,
 }: {
-  dia: DiaReserva;
-  setDia: (d: DiaReserva) => void;
+  /** Todas as datas que dá pra reservar (de amanhã até dois meses à frente). */
+  datas: DataDisponivel[];
+  /** Data escolhida; null só no instante antes de a tela montar no navegador. */
+  data: string | null;
+  setData: (iso: string) => void;
+  /** Dias em que o restaurante está fechado (marcados pelo administrador). */
+  fechados: Map<string, DiaFechado>;
   pessoas: number;
   setPessoas: (n: number) => void;
   pessoasCustom: boolean;
   setPessoasCustom: (b: boolean) => void;
-  /** Dias em que o restaurante está fechado (marcados pelo administrador). */
-  fechadosPorDia: Record<DiaReserva, DiaFechado | undefined>;
   onBuscar: () => void;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
 
   // "Reservar uma mesa" no menu: rola até o cartão de reserva e o destaca por
   // um instante — a página é curta e o cartão muitas vezes já está na tela, aí
@@ -869,19 +920,41 @@ function TelaInicio({
       cartao.style.boxShadow = sombraOriginal;
     }, 1400);
   }
-  const diaLabel = `${DIAS.find((d) => d.chave === dia)?.label.split("-")[0]}, ${formatarDataCurta(dataDoDia(dia))}`;
-  const diaLabelCompacto = formatarDataCurta(dataDoDia(dia));
+  const diaLabel = data ? rotuloDaData(data, true) : "Carregando…";
+  const ultimaData = datas[datas.length - 1];
 
+  // A lista mostra só as próximas datas; o resto da agenda (até dois meses)
+  // fica no calendário, pra lista não virar um painel enorme. Se a pessoa
+  // escolheu no calendário uma data que não está entre as próximas, ela entra
+  // na lista também — senão o campo não teria como mostrá-la.
   // Dia fechado continua na lista (pra pessoa entender por que não dá), mas
   // não pode ser escolhido.
-  const opcoesDia = DIAS.map((d) => (
-    <option key={d.chave} value={d.chave} disabled={Boolean(fechadosPorDia[d.chave])}>
-      {d.label.split("-")[0]}, {formatarDataCurta(dataDoDia(d.chave))}
-      {fechadosPorDia[d.chave] ? " — fechado" : ""}
-    </option>
-  ));
+  const proximas = datas.slice(0, DATAS_NA_LISTA);
+  const listadas = data && !proximas.some((d) => d.iso === data) ? [...proximas, ...datas.filter((d) => d.iso === data)] : proximas;
+  const escolherNaLista = (valor: string) => (valor === "outra" ? setCalendarioAberto(true) : setData(valor));
+  const opcoesDia = [
+    ...listadas.map((d) => (
+      <option key={d.iso} value={d.iso} disabled={fechados.has(d.iso)}>
+        {rotuloDaData(d.iso, true)}
+        {fechados.has(d.iso) ? " — fechado" : ""}
+      </option>
+    )),
+    <option key="outra" value="outra">Escolher outra data…</option>,
+  ];
+  // atalho visível pro calendário: nem todo mundo abre a lista até o fim
+  const atalhoCalendario = ultimaData ? (
+    <button
+      type="button"
+      onClick={() => setCalendarioAberto(true)}
+      className="self-start flex items-center gap-1.5 text-[13px] font-semibold"
+      style={{ color: "var(--color-primary)" }}
+    >
+      {ICONE_CALENDARIO}
+      Ver calendário · datas até {formatarDataCurta(ultimaData.data)}
+    </button>
+  ) : null;
 
-  const fechadoNoDiaEscolhido = fechadosPorDia[dia];
+  const fechadoNoDiaEscolhido = data ? fechados.get(data) : undefined;
   const avisoFechado = fechadoNoDiaEscolhido ? (
     <p
       role="alert"
@@ -895,6 +968,16 @@ function TelaInicio({
 
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+      {calendarioAberto && (
+        <SeletorDeData
+          datas={datas}
+          fechados={fechados}
+          selecionada={data}
+          aoEscolher={(iso) => { setData(iso); setCalendarioAberto(false); }}
+          aoFechar={() => setCalendarioAberto(false)}
+        />
+      )}
+
       {/* ===================== MOBILE (< lg) ===================== */}
       <div className="lg:hidden flex flex-col">
         <MenuMobile
@@ -957,15 +1040,16 @@ function TelaInicio({
             className="flex flex-col divide-y overflow-hidden"
             style={{ background: "var(--color-surface)", borderRadius: "28px", boxShadow: "0 18px 40px -12px rgba(42,23,18,0.35)" }}
           >
-            <CampoReserva label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabel} value={dia} onChange={(v) => setDia(v as DiaReserva)} mostrarSeta>
+            <CampoReserva label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabel} value={data ?? ""} onChange={escolherNaLista} mostrarSeta>
               {opcoesDia}
             </CampoReserva>
             <CampoPessoas pessoas={pessoas} setPessoas={setPessoas} custom={pessoasCustom} setCustom={setPessoasCustom} mostrarSeta />
             <div className="p-3 flex flex-col gap-2.5">
+              <div className="px-1.5 pt-0.5">{atalhoCalendario}</div>
               {avisoFechado}
               <button
                 onClick={onBuscar}
-                disabled={Boolean(fechadoNoDiaEscolhido)}
+                disabled={!data || Boolean(fechadoNoDiaEscolhido)}
                 className="w-full py-3.5 text-[14.5px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "999px" }}
               >
@@ -1033,17 +1117,18 @@ function TelaInicio({
                 </div>
 
                 <div className="flex items-stretch" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <CampoReserva compacto mostrarSeta label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabelCompacto} value={dia} onChange={(v) => setDia(v as DiaReserva)}>
+                  <CampoReserva compacto mostrarSeta label="Data" icon={ICONE_CALENDARIO} displayValue={diaLabel} value={data ?? ""} onChange={escolherNaLista}>
                     {opcoesDia}
                   </CampoReserva>
                   <CampoPessoas compacto divisor pessoas={pessoas} setPessoas={setPessoas} custom={pessoasCustom} setCustom={setPessoasCustom} />
                 </div>
 
                 <div className="p-4 flex flex-col gap-3">
+                  <div className="px-1">{atalhoCalendario}</div>
                   {avisoFechado}
                   <button
                     onClick={onBuscar}
-                    disabled={Boolean(fechadoNoDiaEscolhido)}
+                    disabled={!data || Boolean(fechadoNoDiaEscolhido)}
                     className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ background: "var(--color-primary)", borderRadius: "12px" }}
                   >

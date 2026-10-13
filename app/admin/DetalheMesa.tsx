@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ROTULO_STATUS_CHEGADA, rotuloDaReserva, statusChegada, type Mesa, type Reserva, type ResultadoAcao } from "@/lib/reservas";
+import { ROTULO_STATUS_CHEGADA, diasAteAniversario, rotuloDaReserva, statusChegada, type Mesa, type Reserva, type ResultadoAcao } from "@/lib/reservas";
 import { linkWhatsapp, mensagemConfirmacao } from "@/lib/whatsapp";
 import StatusBadge from "./StatusBadge";
 
@@ -22,6 +22,9 @@ const ICONE_ALERTA = (
 );
 const ICONE_NOTA = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /><path d="M9.5 13h5M9.5 16.5h5" /></svg>
+);
+const ICONE_PRESENTE = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3.5" y="10" width="17" height="10.5" rx="1.2" /><path d="M2.5 6.5h19V10h-19zM12 6.5v14M12 6.5c-1.2-3-5.2-3.2-5.2-.9 0 1 1.7.9 5.2.9Zm0 0c1.2-3 5.2-3.2 5.2-.9 0 1-1.7.9-5.2.9Z" /></svg>
 );
 const ICONE_WHATSAPP = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.6-.8-1.8-.9-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.2.2-.3.2-.5.1-.3-.1-1.2-.4-2.2-1.4-.8-.7-1.4-1.6-1.5-1.9-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5C11 9 10.5 7.8 10.3 7.3c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.5.1-.7.3-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2.1 3.2 5 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.6-.7 1.9-1.3.2-.6.2-1.2.2-1.3-.1-.1-.2-.2-.5-.3Z" /><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.1-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.6 0-3.1-.4-4.4-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Z" /></svg>
@@ -66,6 +69,10 @@ export default function DetalheMesaConteudo({
   }
 
   const chegada = reservaFoco ? statusChegada(reservaFoco, minutosAgora) : null;
+  // aniversário a até uma semana da data da reserva: vale a equipe saber
+  const diasDoAniversario =
+    reservaFoco?.aniversario && reservaFoco.dataReserva ? diasAteAniversario(reservaFoco.aniversario, reservaFoco.dataReserva) : null;
+  const aniversarioPerto = diasDoAniversario !== null && Math.abs(diasDoAniversario) <= 7;
   const corTexto = chegada === "chegou" ? "var(--color-accent-dark)" : chegada === "tolerancia" ? "var(--color-secondary-dark)" : "var(--color-error)";
   const corFundo = chegada === "chegou" ? "var(--color-accent-soft)" : chegada === "tolerancia" ? "var(--color-secondary-soft)" : "var(--color-error-soft)";
 
@@ -90,6 +97,16 @@ export default function DetalheMesaConteudo({
             <span className="font-semibold">{reservaFoco.nome}</span>
             <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_TELEFONE}{reservaFoco.telefone}</span>
             <span className="flex items-center gap-1.5" style={{ color: "var(--color-text-muted)" }}>{ICONE_RELOGIO}{rotuloDaReserva(reservaFoco)} · {reservaFoco.horario} · {reservaFoco.pessoas} pessoa{reservaFoco.pessoas === 1 ? "" : "s"}</span>
+            {reservaFoco.aniversario && (
+              <span
+                className="flex items-center gap-1.5"
+                style={{ color: aniversarioPerto ? "var(--color-secondary-dark)" : "var(--color-text-muted)", fontWeight: aniversarioPerto ? 600 : 400 }}
+              >
+                {ICONE_PRESENTE}
+                Aniversário: {reservaFoco.aniversario}
+                {aniversarioPerto ? (diasDoAniversario === 0 ? " · é no dia da reserva" : " · perto da reserva") : ""}
+              </span>
+            )}
             {reservaFoco.observacao && (
               <span className="flex items-start gap-1.5" style={{ color: "var(--color-dark)" }}>
                 <span className="shrink-0 mt-0.5">{ICONE_NOTA}</span>
