@@ -26,6 +26,7 @@ import {
   type DiaMovimento,
   type Metrica,
 } from "@/lib/movimento";
+import { baixarCsv, nomeDoArquivo } from "@/lib/exportar";
 import GraficoSemanas, { ESTILO_DA_BARRA, type GrupoGrafico, type TipoDeBarra } from "./GraficoSemanas";
 
 const NOME_DIA: Record<number, string> = { 5: "Sexta", 6: "Sábado", 0: "Domingo" };
@@ -167,15 +168,7 @@ export default function MovimentoPage() {
       [...linhasDia].reverse().map((l) => l.dia),
       totalDeMesas,
     );
-    const nome = reservaBrand.restauranteAtual.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `movimento-${nome}-${hojeIso}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    baixarCsv(nomeDoArquivo("movimento", reservaBrand.restauranteAtual, hojeIso), csv);
   }
 
   const comparecimento = d.passadas.pessoas > 0 ? d.passadas.chegaram / d.passadas.pessoas : null;

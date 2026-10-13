@@ -1,6 +1,6 @@
 "use client";
 
-import { statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
+import { statusMesa, type DiaReserva, type Ocupacao } from "@/lib/reservas";
 import { useMesasConfig } from "@/lib/mesas";
 import { ZONAS_DA_PLANTA } from "@/lib/regras";
 
@@ -29,7 +29,7 @@ export default function MesaMapa({
   rotuloLivre = "Livre",
   rotuloSelecionada = "Selecionada",
 }: {
-  reservas: Reserva[];
+  reservas: Ocupacao[];
   dia: DiaReserva;
   /** Data mostrada ("2026-10-16"). Sem ela vale a próxima ocorrência do dia da semana. */
   data?: string;

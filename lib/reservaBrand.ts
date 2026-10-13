@@ -3,7 +3,6 @@ export const reservaBrand = {
   nome: "Mesa Certa",
   tagline: "Reservas para restaurantes",
   restauranteAtual: "ZéPelin",
-  admin: { nome: "maninho", cargo: "Administrador" },
   diasFuncionamento: "Sexta, sábado e domingo",
   cores: {
     fundo: "#F7F2E8",

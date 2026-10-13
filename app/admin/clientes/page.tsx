@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { historicoDoCliente, listarClientes, relogioSaoPaulo, rotuloDaReserva, useReservas } from "@/lib/reservas";
+import BotaoPlanilha from "../BotaoPlanilha";
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -30,11 +31,15 @@ export default function ClientesPage() {
 
   return (
     <div className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-10 py-7 flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[40px] leading-tight">Clientes</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
-          Histórico básico das reservas de cada cliente — toque num nome para ver.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-[40px] leading-tight">Clientes</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
+            Histórico básico das reservas de cada cliente — toque num nome para ver.
+          </p>
+        </div>
+        {/* a lista inteira de clientes, pra guardar uma cópia fora do sistema */}
+        <BotaoPlanilha tipo="clientes" />
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

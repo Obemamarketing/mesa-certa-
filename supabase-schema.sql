@@ -25,13 +25,34 @@ create unique index if not exists reservas_slot_unico
 
 alter table reservas enable row level security;
 
--- Protótipo sem login: libera leitura e escrita pra chave anônima.
--- Antes de virar produto de verdade, troque por políticas com autenticação
--- (ex: só o dono autenticado pode cancelar reservas).
-create policy "reservas_select_publico" on reservas for select using (true);
-create policy "reservas_insert_publico" on reservas for insert with check (true);
-create policy "reservas_update_publico" on reservas for update using (true);
+-- Instalação nova começa ABERTA: leitura e escrita pela chave pública do site.
+-- É só o ponto de partida. O login do painel e o fechamento do banco vêm em
+-- seguida: supabase-completo.sql, supabase-administradores.sql e, por último,
+-- supabase-fechar-acesso.sql.
+-- Banco que já foi fechado continua fechado, mesmo rodando este arquivo de novo.
+do $$
+declare
+  fechado boolean := false;
+begin
+  if to_regclass('public.acesso_publico') is not null then
+    execute 'select exists (select 1 from acesso_publico where fechado_em is not null)' into fechado;
+  end if;
+  if fechado then
+    return;
+  end if;
 
--- Liga o realtime pra admin e cliente verem mudanças na hora, sem precisar
--- recarregar a página.
-alter publication supabase_realtime add table reservas;
+  drop policy if exists "reservas_select_publico" on reservas;
+  drop policy if exists "reservas_insert_publico" on reservas;
+  drop policy if exists "reservas_update_publico" on reservas;
+  create policy "reservas_select_publico" on reservas for select using (true);
+  create policy "reservas_insert_publico" on reservas for insert with check (true);
+  create policy "reservas_update_publico" on reservas for update using (true);
+end $$;
+
+-- Liga o realtime pro painel ver mudanças na hora, sem precisar recarregar a
+-- página.
+do $$ begin
+  alter publication supabase_realtime add table reservas;
+exception when duplicate_object then null;
+         when undefined_object then null;
+end $$;

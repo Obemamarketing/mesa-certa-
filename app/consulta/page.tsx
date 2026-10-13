@@ -6,24 +6,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { reservaBrand } from "@/lib/reservaBrand";
 import {
-  buscarReservaDoCliente,
-  cancelarReserva,
+  cancelarMinhaReserva,
   codigoDaReserva,
+  consultarReservas,
   horaLimiteDaTolerancia,
   MINIMO_LETRAS_NA_BUSCA,
   relogioSaoPaulo,
   rotuloDaReserva,
   statusChegada,
-  type Reserva,
+  type ReservaConsultada,
+  type ResultadoDoCancelamento,
 } from "@/lib/reservas";
+import { soDigitos } from "@/lib/validacao";
 import { useAgora } from "@/lib/relogio";
 import { useMesasConfig } from "@/lib/mesas";
 
 type Estado = { rotulo: string; fundo: string; cor: string; nota?: string };
 
-function estadoDaReserva(r: Reserva, minutosAgora: number | null): Estado {
+function estadoDaReserva(r: ReservaConsultada, minutosAgora: number | null): Estado {
   if (r.cancelada) return { rotulo: "Cancelada", fundo: "var(--color-error-soft)", cor: "var(--color-error)", nota: "Esta reserva foi cancelada e a mesa foi liberada." };
-  if (r.checkinEm) return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "Você já foi recebido nesta reserva. Esperamos você de novo!" };
+  if (r.chegou) return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "Você já foi recebido nesta reserva. Esperamos você de novo!" };
   // a data da reserva entra na conta: reserva de outra data não está "na
   // tolerância" só porque o relógio de hoje passou das 19h30
   const chegada = statusChegada(r, minutosAgora);
@@ -32,16 +34,30 @@ function estadoDaReserva(r: Reserva, minutosAgora: number | null): Estado {
   return { rotulo: "Confirmada", fundo: "var(--color-accent-soft)", cor: "var(--color-accent-dark)" };
 }
 
+// O que dizer quando o cancelamento não aconteceu.
+const MOTIVO: Partial<Record<ResultadoDoCancelamento, string>> = {
+  telefone: "Esses números não conferem com o telefone desta reserva. Confira e tente de novo.",
+  bloqueada: "Foram muitas tentativas com o número errado. Para cancelar esta reserva, fale com o restaurante.",
+  encerrada: "Esta reserva já foi encerrada e não pode mais ser alterada por aqui.",
+  nao_encontrada: "Não encontramos mais esta reserva. Faça a consulta de novo.",
+  erro: "Não foi possível cancelar agora. Confira a conexão e tente de novo.",
+};
+
 export default function ConsultaPage() {
   const router = useRouter();
   const { mesas } = useMesasConfig();
   const [termo, setTermo] = useState("");
-  const [resultados, setResultados] = useState<Reserva[] | null>(null);
+  const [resultados, setResultados] = useState<ReservaConsultada[] | null>(null);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [buscando, setBuscando] = useState(false);
   const agora = useAgora(60000);
   // hora do restaurante (São Paulo), não a do aparelho de quem consulta
   const minutosAgora = agora ? relogioSaoPaulo(agora).minutos : null;
   const [acao, setAcao] = useState<{ id: string; tipo: "cancelar" | "alterar" } | null>(null);
+  // Os 4 últimos dígitos do telefone da reserva: é o que prova que a reserva é
+  // de quem está pedindo o cancelamento. Fica guardado entre uma reserva e
+  // outra — quem reservou duas mesas não precisa digitar duas vezes.
+  const [finalTelefone, setFinalTelefone] = useState("");
   const [processandoId, setProcessandoId] = useState<string | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
 
@@ -50,21 +66,26 @@ export default function ConsultaPage() {
     setBuscando(true);
     setAcao(null);
     setErroAcao(null);
-    setResultados(await buscarReservaDoCliente(termo));
+    const r = await consultarReservas(termo);
+    // erro de conexão não é "reserva não encontrada"
+    setErroBusca(r.erro ?? null);
+    setResultados(r.erro ? null : r.reservas);
     setBuscando(false);
   }
 
   async function cancelar(id: string, depois?: () => void) {
+    if (finalTelefone.length !== 4) return;
     setProcessandoId(id);
     setErroAcao(null);
-    const r = await cancelarReserva(id);
-    if (r.erro) {
+    const resultado = await cancelarMinhaReserva(id, finalTelefone);
+    if (resultado !== "ok" && resultado !== "ja_cancelada") {
       // não cancelou: não segue pra "escolher nova reserva" deixando a antiga de pé
       setProcessandoId(null);
-      setErroAcao(r.erro);
+      setErroAcao(MOTIVO[resultado] ?? MOTIVO.erro!);
       return;
     }
-    setResultados(await buscarReservaDoCliente(termo));
+    const r = await consultarReservas(termo);
+    if (!r.erro) setResultados(r.reservas);
     setProcessandoId(null);
     setAcao(null);
     depois?.();
@@ -109,6 +130,12 @@ export default function ConsultaPage() {
           </button>
         </div>
 
+        {erroBusca && (
+          <p role="alert" className="border px-5 py-4 text-[14px] font-semibold" style={{ borderColor: "var(--color-error)", borderRadius: "16px", background: "var(--color-error-soft)", color: "var(--color-error)" }}>
+            {erroBusca}
+          </p>
+        )}
+
         {resultados !== null && resultados.length === 0 && (
           <div className="border px-5 py-6 flex flex-col gap-1.5" style={{ borderColor: "var(--color-border)", borderRadius: "16px", background: "var(--color-surface)" }}>
             <p className="font-display text-xl" style={{ color: "var(--color-dark)" }}>Reserva não encontrada</p>
@@ -144,8 +171,7 @@ export default function ConsultaPage() {
                 <Linha rotulo="Pessoas" valor={`${r.pessoas} pessoa${r.pessoas === 1 ? "" : "s"}`} />
                 <Linha rotulo="Mesa" valor={`Mesa ${r.mesaNumero}`} />
                 <Linha rotulo="Área" valor={mesa?.zona ?? "—"} />
-                <Linha rotulo="Tolerância" valor={`Chegue até ${horaLimiteDaTolerancia(r.horario)}`} ultima={!r.observacao} />
-                {r.observacao && <Linha rotulo="Observação" valor={r.observacao} ultima />}
+                <Linha rotulo="Tolerância" valor={`Chegue até ${horaLimiteDaTolerancia(r.horario)}`} ultima />
               </dl>
 
               {estado.nota && (
@@ -157,14 +183,14 @@ export default function ConsultaPage() {
               {!encerrada && !confirmando && (
                 <div className="px-6 pb-6 pt-1 flex flex-col sm:flex-row gap-2.5">
                   <button
-                    onClick={() => setAcao({ id: r.id, tipo: "alterar" })}
+                    onClick={() => { setErroAcao(null); setAcao({ id: r.id, tipo: "alterar" }); }}
                     className="flex-1 py-3 text-[14px] font-semibold border"
                     style={{ borderColor: "var(--color-primary)", color: "var(--color-primary)", borderRadius: "12px" }}
                   >
                     Alterar reserva
                   </button>
                   <button
-                    onClick={() => setAcao({ id: r.id, tipo: "cancelar" })}
+                    onClick={() => { setErroAcao(null); setAcao({ id: r.id, tipo: "cancelar" }); }}
                     className="flex-1 py-3 text-[14px] font-semibold border"
                     style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)", borderRadius: "12px" }}
                   >
@@ -175,25 +201,45 @@ export default function ConsultaPage() {
 
               {!encerrada && confirmando && (
                 <div className="px-6 pb-6 pt-1 flex flex-col gap-3">
-                  {erroAcao && acao?.id === r.id && (
-                    <p role="alert" className="text-[13.5px] font-semibold" style={{ color: "var(--color-error)" }}>{erroAcao}</p>
-                  )}
                   <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-dark)" }}>
                     {confirmando === "cancelar"
                       ? "Tem certeza que deseja cancelar? A mesa será liberada para outros clientes."
                       : "Para alterar data, mesa ou número de pessoas, cancelamos esta reserva e você escolhe uma nova em seguida. Deseja continuar?"}
                   </p>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor={`final-${r.id}`} className="text-[13px] font-medium" style={{ color: "var(--color-text-muted)" }}>
+                      Para confirmar que a reserva é sua, digite os 4 últimos números do telefone usado na reserva.
+                    </label>
+                    <input
+                      id={`final-${r.id}`}
+                      value={finalTelefone}
+                      onChange={(e) => { setFinalTelefone(soDigitos(e.target.value).slice(0, 4)); setErroAcao(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && cancelar(r.id, confirmando === "alterar" ? () => router.push("/") : undefined)}
+                      placeholder="0000"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      className="border px-4 py-3 text-[18px] tracking-[0.3em] font-semibold outline-none w-[130px]"
+                      style={{ borderColor: erroAcao && acao?.id === r.id ? "var(--color-error)" : "var(--color-border)", borderRadius: "12px", background: "var(--color-bg)", color: "var(--color-dark)" }}
+                    />
+                  </div>
+
+                  {erroAcao && acao?.id === r.id && (
+                    <p role="alert" className="text-[13.5px] font-semibold" style={{ color: "var(--color-error)" }}>{erroAcao}</p>
+                  )}
+
                   <div className="flex flex-col sm:flex-row gap-2.5">
                     <button
                       onClick={() => cancelar(r.id, confirmando === "alterar" ? () => router.push("/") : undefined)}
-                      disabled={processandoId === r.id}
+                      disabled={processandoId === r.id || finalTelefone.length !== 4}
                       className="flex-1 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
                       style={{ background: "var(--color-primary)", borderRadius: "12px" }}
                     >
                       {processandoId === r.id ? "Aguarde…" : confirmando === "cancelar" ? "Sim, cancelar" : "Cancelar e escolher nova reserva"}
                     </button>
                     <button
-                      onClick={() => setAcao(null)}
+                      onClick={() => { setAcao(null); setErroAcao(null); }}
                       className="flex-1 py-3 text-[14px] font-semibold border"
                       style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)", borderRadius: "12px" }}
                     >

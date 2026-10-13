@@ -32,6 +32,7 @@ import DetalheMesaConteudo from "./DetalheMesa";
 import StatCard from "./StatCard";
 import StatusBadge from "./StatusBadge";
 import NewReservationModal from "./NewReservationModal";
+import BotaoPlanilha from "./BotaoPlanilha";
 
 const ICONE_CALENDARIO = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
@@ -342,6 +343,13 @@ export default function ReservasAdminPage() {
                 ))}
               </div>
             )}
+
+            {/* no pé da lista, pra não empurrar as reservas pra baixo: a planilha
+                traz TODAS as reservas, de todas as datas — é a cópia pra guardar */}
+            <div className="px-5 py-3.5 flex items-start justify-between gap-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+              <span className="text-[13px] pt-2.5 min-w-0" style={{ color: "var(--color-text-muted)" }}>Todas as reservas, de todas as datas, em planilha</span>
+              <BotaoPlanilha tipo="reservas" alinhar="direita" />
+            </div>
           </section>
 
           <section

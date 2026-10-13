@@ -10,19 +10,18 @@ import {
   DIAS,
   HORARIO_FIXO,
   TOLERANCIA_MINUTOS,
-  criarReserva,
-  cancelarReserva,
   dataDoIso,
   datasParaReserva,
   diaDaData,
   formatarDataCurta,
   listaDeMesas,
   relogioSaoPaulo,
+  reservar,
   rotuloDaData,
   rotuloDaReserva,
   situacaoDoGrupo,
   statusMesa,
-  useReservas,
+  useMesasOcupadas,
   type DataDisponivel,
   type DiaReserva,
   type Mesa,
@@ -52,7 +51,9 @@ function rotuloZona(zona: Mesa["zona"]): string {
 }
 
 export default function ReservasPage() {
-  const { reservas } = useReservas();
+  // só quais mesas estão tomadas em cada data — o site do cliente não recebe
+  // nome nem telefone de ninguém
+  const { ocupadas, recarregar: recarregarMesas } = useMesasOcupadas();
   const { mesas } = useMesasConfig();
   const { fechados } = useDiasFechados();
   const [etapaEscolhida, setEtapa] = useState<Etapa>("inicio");
@@ -94,6 +95,8 @@ export default function ReservasPage() {
   const [reservasFeitas, setReservasFeitas] = useState<Reserva[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // recado na planta quando a mesa escolhida foi levada por outra pessoa
+  const [alertaMesa, setAlertaMesa] = useState<string | null>(null);
 
   const escolhidas = mesasNumeros
     .map((n) => mesas.find((m) => m.numero === n))
@@ -121,9 +124,10 @@ export default function ReservasPage() {
   // clique pode vir da planta, onde nenhum desenho fica "desabilitado".
   function alternarMesa(numero: string) {
     const mesa = mesas.find((m) => m.numero === numero);
+    setAlertaMesa(null);
     setMesasNumeros((atual) => {
       if (atual.includes(numero)) return atual.filter((n) => n !== numero);
-      if (!mesa || !data || statusMesa(reservas, dia, horario, mesa, undefined, data) !== "livre") return atual;
+      if (!mesa || !data || statusMesa(ocupadas, dia, horario, mesa, undefined, data) !== "livre") return atual;
       const atuais = atual
         .map((n) => mesas.find((m) => m.numero === n))
         .filter((m): m is NonNullable<typeof m> => Boolean(m));
@@ -137,47 +141,50 @@ export default function ReservasPage() {
     setEnviando(true);
     setErro(null);
 
-    // Uma reserva por mesa. Se alguma falhar (ex.: alguém levou a mesa no
-    // meio-tempo), desfaz as que já foram gravadas: o cliente nunca fica com
-    // só parte das mesas do grupo.
-    const criadas: Reserva[] = [];
-    for (const parte of situacao.partes) {
-      const { reserva, erro: mensagemErro } = await criarReserva({
-        dia,
-        dataReserva: data,
-        horario,
-        mesaNumero: parte.numero,
-        pessoas: parte.pessoas,
-        nome: nome.trim(),
-        telefone: telefone.trim(),
-        email: email.trim() || undefined,
-        aniversario: aniversario.trim() || undefined,
-        observacao: observacao.trim() || undefined,
-      });
-      if (!reserva) {
-        // desfazer também pode falhar (queda de rede): nesse caso não dá pra
-        // prometer que nada ficou reservado — avisa a verdade
-        let ficouParaTras = 0;
-        for (const feita of criadas) {
-          const r = await cancelarReserva(feita.id);
-          if (r.erro) ficouParaTras++;
-        }
-        setEnviando(false);
-        const base = mensagemErro ?? "Não foi possível confirmar a reserva.";
-        if (ficouParaTras > 0) {
-          setErro(`${base} Atenção: ${ficouParaTras === 1 ? "uma mesa" : `${ficouParaTras} mesas`} do seu grupo pode ter ficado reservada. Consulte pelo seu nome ou fale com o restaurante.`);
-        } else if (criadas.length > 0) {
-          setErro(`${base} Nenhuma das mesas foi reservada — escolha de novo.`);
-        } else {
-          setErro(base);
-        }
-        return;
+    // Uma reserva por mesa, todas gravadas de uma vez pelo banco: ou entra o
+    // grupo inteiro, ou não entra nada — o cliente nunca fica com só parte das
+    // mesas.
+    const resultado = await reservar({
+      dataReserva: data,
+      horario,
+      mesas: situacao.partes,
+      nome: nome.trim(),
+      telefone: telefone.trim(),
+      email: email.trim() || undefined,
+      aniversario: aniversario.trim() || undefined,
+      observacao: observacao.trim() || undefined,
+    });
+
+    if (resultado.erro || resultado.reservas.length === 0) {
+      const mensagem = resultado.erro ?? "Não foi possível confirmar a reserva agora. Tente de novo.";
+      // Alguém levou uma das mesas no meio-tempo: confere a planta de novo, tira
+      // da escolha o que não está mais livre e leva a pessoa de volta pra planta
+      // — senão ela não teria como saber QUAL mesa trocar.
+      const atuais = resultado.mesaTomada ? await recarregarMesas() : null;
+      setEnviando(false);
+      if (atuais) {
+        setMesasNumeros((escolha) =>
+          escolha.filter((n) => {
+            const mesa = mesas.find((m) => m.numero === n);
+            return mesa ? statusMesa(atuais, dia, horario, mesa, undefined, data) === "livre" : false;
+          }),
+        );
+        setAlertaMesa(
+          situacao.partes.length > 1
+            ? "Uma das mesas acabou de ser reservada por outra pessoa. Nada foi reservado — escolha outra mesa para completar."
+            : "Essa mesa acabou de ser reservada por outra pessoa. Escolha outra.",
+        );
+        setEtapa("mesa");
+      } else {
+        setErro(mensagem);
       }
-      criadas.push(reserva);
+      return;
     }
+
     setEnviando(false);
-    setReservasFeitas(criadas);
+    setReservasFeitas(resultado.reservas);
     setEtapa("confirmada");
+    recarregarMesas();
   }
 
   function reiniciar() {
@@ -191,6 +198,7 @@ export default function ReservasPage() {
     setObservacao("");
     setReservasFeitas([]);
     setErro(null);
+    setAlertaMesa(null);
   }
 
   if (etapa === "inicio") {
@@ -316,12 +324,13 @@ export default function ReservasPage() {
         {/* ===== MOBILE — planta em pe + lista ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
           <EscolhaMesaMobile
-            reservas={reservas}
+            reservas={ocupadas}
             dia={dia}
             data={data ?? ""}
             horario={horario}
             pessoas={pessoas}
             mesasNumeros={mesasNumeros}
+            alerta={alertaMesa}
             onAlternar={alternarMesa}
             onVoltar={() => setEtapa("horario")}
             onContinuar={() => setEtapa("dados")}
@@ -331,12 +340,13 @@ export default function ReservasPage() {
         {/* ===== DESKTOP — planta do salao + painel de selecao ===== */}
         <div className="hidden lg:flex flex-col flex-1">
           <EscolhaMesaDesktop
-            reservas={reservas}
+            reservas={ocupadas}
             dia={dia}
             data={data ?? ""}
             horario={horario}
             pessoas={pessoas}
             mesasNumeros={mesasNumeros}
+            alerta={alertaMesa}
             onAlternar={alternarMesa}
             onVoltar={() => setEtapa("horario")}
             onContinuar={() => setEtapa("dados")}

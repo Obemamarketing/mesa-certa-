@@ -34,6 +34,15 @@ export function telefoneValido(texto: string): boolean {
   return !/^(\d)\1+$/.test(local); // 11111111111 não é telefone
 }
 
+// O mesmo telefone escrito de jeitos diferentes — "(41) 99999-9999",
+// "41999999999", "+55 41 99999-9999" — é a mesma pessoa. Esta é a chave que
+// junta as reservas de um cliente.
+export function chaveDoTelefone(telefone: string): string {
+  const digitos = soDigitos(telefone);
+  const local = digitos.length > 11 && digitos.startsWith("55") ? digitos.slice(2) : digitos;
+  return local || telefone.trim();
+}
+
 // Número como a API do WhatsApp espera: só dígitos, com o código do país.
 // Brasil (55) quando vier só DDD + número.
 export function telefoneInternacional(texto: string): string {

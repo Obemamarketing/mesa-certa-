@@ -17,7 +17,7 @@
 // de maior resolução basta substituir o arquivo, mantendo a proporção.
 
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { statusMesa, type DiaReserva, type Reserva } from "@/lib/reservas";
+import { statusMesa, type DiaReserva, type Ocupacao } from "@/lib/reservas";
 import { MESAS_PADRAO, type MesaConfig } from "@/lib/mesas";
 
 export const IMAGEM_PLANTA = "/planta-zepelin.webp";
@@ -74,7 +74,7 @@ export default function PlantaRestaurante({
   zoomavel = false,
   areaDeToque = TAMANHO_MARCADOR,
 }: {
-  reservas: Reserva[];
+  reservas: Ocupacao[];
   dia: DiaReserva;
   horario: string;
   mesaSelecionada: string | null;

@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import {
   HORARIO_FIXO,
-  criarReserva,
   datasParaReserva,
   diaDaData,
   relogioSaoPaulo,
+  reservar,
   rotuloDaData,
   type Reserva,
 } from "@/lib/reservas";
@@ -76,19 +76,18 @@ export default function NewReservationModal({
     if (!podeConfirmar || !mesaNumero) return;
     setEnviando(true);
     setErro(null);
-    const { reserva, erro: mensagemErro } = await criarReserva({
-      dia,
+    // mesma função do site do cliente: as regras do banco valem igual aqui
+    const { reservas: criadas, erro: mensagemErro } = await reservar({
       dataReserva: data,
       horario,
-      mesaNumero,
-      pessoas,
+      mesas: [{ numero: mesaNumero, pessoas }],
       nome: nome.trim(),
       telefone: telefone.trim(),
       aniversario: aniversario.trim() || undefined,
       observacao: observacao.trim() || undefined,
     });
     setEnviando(false);
-    if (!reserva) {
+    if (mensagemErro || criadas.length === 0) {
       setErro(mensagemErro ?? "Não foi possível criar a reserva.");
       return;
     }

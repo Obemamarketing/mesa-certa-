@@ -16,7 +16,7 @@ import {
   statusMesa,
   type DiaReserva,
   type Mesa,
-  type Reserva,
+  type Ocupacao,
 } from "@/lib/reservas";
 import { useMesasConfig } from "@/lib/mesas";
 import PlantaRestaurante, { LegendaPlanta } from "./PlantaRestaurante";
@@ -56,11 +56,12 @@ export default function EscolhaMesaMobile({
   horario,
   pessoas,
   mesasNumeros,
+  alerta,
   onAlternar,
   onVoltar,
   onContinuar,
 }: {
-  reservas: Reserva[];
+  reservas: Ocupacao[];
   dia: DiaReserva;
   /** Data da reserva ("2026-10-16"): é para ela que as mesas aparecem livres ou ocupadas. */
   data: string;
@@ -68,6 +69,9 @@ export default function EscolhaMesaMobile({
   pessoas: number;
   /** Mesas escolhidas, na ordem em que foram escolhidas. */
   mesasNumeros: string[];
+  /** Recado que fica na planta até a pessoa mexer nela (ex.: a mesa escolhida
+   *  foi levada por outra pessoa na hora de confirmar). */
+  alerta?: string | null;
   /** Escolhe ou desmarca uma mesa. */
   onAlternar: (numero: string) => void;
   onVoltar: () => void;
@@ -189,12 +193,12 @@ export default function EscolhaMesaMobile({
           />
           {/* motivo quando o toque na planta não pôde escolher a mesa */}
           <div aria-live="polite" className="absolute inset-x-0 bottom-2 flex justify-center px-3 pointer-events-none" style={{ zIndex: 6 }}>
-            {aviso && (
+            {(aviso ?? alerta) && (
               <span
                 className="text-[12.5px] font-semibold px-3.5 py-2 text-center leading-snug"
                 style={{ background: "rgba(42,23,18,0.94)", color: "#fff", borderRadius: "11px", boxShadow: "0 5px 14px rgba(0,0,0,0.35)" }}
               >
-                {aviso}
+                {aviso ?? alerta}
               </span>
             )}
           </div>

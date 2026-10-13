@@ -7,6 +7,8 @@ import { reservaBrand } from "@/lib/reservaBrand";
 import { DIAS, relogioSaoPaulo } from "@/lib/reservas";
 import { useDiasFechados } from "@/lib/diasFechados";
 import { useAgora } from "@/lib/relogio";
+import { useAcesso } from "@/lib/auth";
+import SairDoPainel from "./SairDoPainel";
 
 const ITENS = [
   {
@@ -86,6 +88,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const agora = useAgora(30000);
   const { fechados } = useDiasFechados();
+  const acesso = useAcesso();
 
   // O cartão dizia "Restaurante aberto" o tempo todo, até na segunda-feira e
   // em dia marcado como fechado no calendário. Agora responde pelo relógio de
@@ -103,7 +106,9 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="hidden lg:flex w-[260px] shrink-0 flex-col justify-between px-5 py-6"
+      // presa na tela: o menu, quem está logado e o "Sair" ficam sempre à vista,
+      // mesmo com a página rolada até o fim
+      className="hidden lg:flex w-[260px] shrink-0 flex-col justify-between gap-6 px-5 py-6 sticky top-0 self-start h-screen overflow-y-auto"
       style={{ background: reservaBrand.heroGradiente }}
     >
       <div className="flex flex-col gap-8">
@@ -136,6 +141,15 @@ export default function Sidebar() {
         </nav>
       </div>
 
+      <div className="flex flex-col gap-3">
+      {/* quem está logado neste aparelho, e a saída */}
+      <div className="flex flex-col gap-2.5 px-1">
+        <span className="text-[12px] break-all" style={{ color: "rgba(255,255,255,0.65)" }}>
+          {acesso.estado === "dentro" ? acesso.email : " "}
+        </span>
+        <div><SairDoPainel fundo="escuro" /></div>
+      </div>
+
       <div className="flex flex-col gap-1.5 px-3.5 py-3.5" style={{ borderRadius: "var(--radius-sm)", background: "rgba(0,0,0,0.18)" }}>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: estado.cor }} />
@@ -150,6 +164,7 @@ export default function Sidebar() {
         <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.65)" }}>
           {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : " "}
         </span>
+      </div>
       </div>
     </aside>
   );
