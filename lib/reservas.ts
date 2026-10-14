@@ -346,6 +346,12 @@ export async function reservar(dados: DadosDaReserva): Promise<ResultadoDaReserv
           : "Essa mesa acabou de ser reservada por outra pessoa. Volte e escolha outra.",
       };
     }
+    if (/LIMITE_DE_RESERVAS: muitas reservas agora/.test(msg)) {
+      return { reservas: [], erro: "Estamos recebendo muitas reservas neste momento. Tente de novo em alguns minutos." };
+    }
+    if (/LIMITE_DE_RESERVAS/.test(msg)) {
+      return { reservas: [], erro: "Este telefone já tem muitas reservas em aberto. Para reservar mais, fale com o restaurante." };
+    }
     if (/DADOS_INVALIDOS: telefone/.test(msg)) return { reservas: [], erro: "Confira o telefone: DDD + número." };
     if (/DADOS_INVALIDOS: nome/.test(msg)) return { reservas: [], erro: "Confira o nome da reserva." };
     if (/DADOS_INVALIDOS: email/.test(msg)) return { reservas: [], erro: "Confira o e-mail." };

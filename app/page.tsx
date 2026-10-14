@@ -1085,7 +1085,7 @@ function TelaInicio({
             </div>
             <nav className="flex items-center gap-3 text-[12.5px] shrink-0" style={{ color: "var(--color-text-muted)" }}>
               <span className="font-medium pb-1" style={{ color: "var(--color-primary)", borderBottom: "1px solid var(--color-primary)" }}>Início</span>
-              <span>Cardápio</span>
+              <Link href="/cardapio" className="pb-1 hover:underline underline-offset-4">Cardápio</Link>
               <span>Reservas</span>
               <span>O {reservaBrand.restauranteAtual}</span>
             </nav>

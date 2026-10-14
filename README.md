@@ -35,6 +35,12 @@ Antes de publicar: `npm run lint`, `npx tsc --noEmit` e `npm run build`.
 
 Cada migração também existe separada (`supabase-migration-*.sql`) para consulta.
 
+## Segurança
+
+[SEGURANCA.md](SEGURANCA.md) é o checklist obrigatório para cada restaurante
+novo (e para revisar os que já estão no ar). A reserva pelo site tem freio
+contra abuso (`supabase-migration-limites.sql`, tabela `limites_reserva`).
+
 ## Login do painel e proteção dos dados
 
 Quem guarda a senha é o Supabase Auth. Estar logado não basta: a conta precisa

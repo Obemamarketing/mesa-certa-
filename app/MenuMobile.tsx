@@ -93,6 +93,13 @@ export default function MenuMobile({
           </li>
 
           <li>
+            <Link href="/cardapio" onClick={aoFechar} className="w-full flex items-center justify-between py-4 text-[16px] font-medium" style={itemEstilo}>
+              Ver o cardápio
+              <Seta />
+            </Link>
+          </li>
+
+          <li>
             <Link href="/consulta" onClick={aoFechar} className="w-full flex items-center justify-between py-4 text-[16px] font-medium" style={itemEstilo}>
               Consultar minha reserva
               <Seta />

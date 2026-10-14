@@ -121,6 +121,8 @@ grant execute on function mesas_ocupadas() to anon, authenticated, service_role;
 --    NENHUMA é gravada (antes o site gravava uma a uma e desfazia na mão).
 --    As regras de data, dia fechado e mesa repetida continuam nos gatilhos e no
 --    índice da tabela — esta função não as contorna.
+--    (supabase-migration-limites.sql redefine esta função com o freio contra
+--    abuso; o supabase-completo.sql roda as duas, nesta ordem.)
 create or replace function reservar(
   p_data date,
   p_horario text,
