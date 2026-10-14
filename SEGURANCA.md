@@ -17,7 +17,7 @@ ar a cada poucos meses.
   `mesas_ocupadas`, `reservar`, `consultar_reservas`, `cancelar_minha_reserva`.
 - **Cancelar pelo site pede os 4 últimos dígitos do telefone**; 5 erros travam.
 - **Freio contra abuso na reserva** (`limites_reserva`): mesas por reserva,
-  mesas e datas por telefone e mesas por 10 minutos. Ajuste ao tamanho do salão:
+  mesas por telefone e mesas por 10 minutos. Ajuste ao tamanho do salão:
   `update limites_reserva set mesas_por_telefone = 10;`
 - **Cabeçalhos de segurança** no site (`next.config.ts`): o site não abre
   dentro de outro site, só por https, e o painel fica fora dos buscadores.

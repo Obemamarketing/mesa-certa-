@@ -10,8 +10,7 @@
 -- COMO FICA
 --   A função reservar() passa a conferir, antes de gravar:
 --     1. no máximo N mesas por reserva;
---     2. no máximo N mesas em reservas futuras por telefone, e em no máximo N
---        datas diferentes;
+--     2. no máximo N mesas em reservas futuras por telefone;
 --     3. no máximo N mesas reservadas PELO SITE nos últimos 10 minutos, somando
 --        todo mundo (segura um ataque em rajada).
 --   O que o administrador reserva pelo painel não entra nas contas e não é
@@ -22,7 +21,10 @@
 --     update limites_reserva set mesas_por_telefone = 10;
 --
 --   Isto FREIA o abuso, não o impede de vez: quem trocar de telefone a cada
---   reserva passa pelos limites 1 e 2. O que barra robô de verdade é o captcha.
+--   reserva passa pelos limites 1 e 2.
+--
+--   (Houve um limite de datas por telefone; foi retirado a pedido do ZéPelin.
+--   Rodar este arquivo de novo apaga a coluna, se ela existir.) O que barra robô de verdade é o captcha.
 
 -- ------------------------------------------------------------------ limites
 create table if not exists limites_reserva (
@@ -31,11 +33,10 @@ create table if not exists limites_reserva (
   mesas_por_reserva int not null default 15 check (mesas_por_reserva >= 1),
   -- mesas que o mesmo telefone pode ter em reservas de hoje em diante
   mesas_por_telefone int not null default 15 check (mesas_por_telefone >= 1),
-  -- datas diferentes que o mesmo telefone pode ter reservadas de hoje em diante
-  datas_por_telefone int not null default 4 check (datas_por_telefone >= 1),
   -- mesas reservadas pelo site, somando todo mundo, a cada 10 minutos
   mesas_por_10_minutos int not null default 30 check (mesas_por_10_minutos >= 1)
 );
+alter table limites_reserva drop column if exists datas_por_telefone;
 insert into limites_reserva (id) values (1) on conflict (id) do nothing;
 
 -- Só o SQL Editor (e o servidor) mexe nos limites. Ninguém lê pela API.
@@ -112,7 +113,7 @@ begin
   if not v_admin then
     select * into v_limites from limites_reserva where id = 1;
     if not found then
-      v_limites := row(1, 15, 15, 4, 30)::limites_reserva;
+      v_limites := row(1, 15, 15, 30)::limites_reserva;
     end if;
 
     -- uma reserva de cada vez por telefone: duas abas mandando juntas não
@@ -133,18 +134,6 @@ begin
                  else regexp_replace(r.telefone, '\D', '', 'g') end) = v_chave;
     if v_qtd + jsonb_array_length(p_mesas) > v_limites.mesas_por_telefone then
       raise exception 'LIMITE_DE_RESERVAS: mesas por telefone' using errcode = 'P0001';
-    end if;
-
-    select count(distinct r.data_reserva) into v_qtd
-      from reservas r
-     where not r.cancelada
-       and r.data_reserva >= v_hoje
-       and r.data_reserva <> p_data
-       and (case when char_length(regexp_replace(r.telefone, '\D', '', 'g')) > 11 and left(regexp_replace(r.telefone, '\D', '', 'g'), 2) = '55'
-                 then substr(regexp_replace(r.telefone, '\D', '', 'g'), 3)
-                 else regexp_replace(r.telefone, '\D', '', 'g') end) = v_chave;
-    if v_qtd + 1 > v_limites.datas_por_telefone then
-      raise exception 'LIMITE_DE_RESERVAS: datas por telefone' using errcode = 'P0001';
     end if;
 
     select count(*) into v_qtd
