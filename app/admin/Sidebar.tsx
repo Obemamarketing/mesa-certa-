@@ -22,6 +22,16 @@ const ITENS = [
     ),
   },
   {
+    href: "/admin/fila",
+    label: "Fila de espera",
+    ativo: (p: string) => p.startsWith("/admin/fila"),
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+        <circle cx="6" cy="8" r="2.4" /><circle cx="12" cy="8" r="2.4" /><circle cx="18" cy="8" r="2.4" /><path d="M2.5 18c0-2.3 1.6-4 3.5-4s3.5 1.7 3.5 4M8.5 18c0-2.3 1.6-4 3.5-4s3.5 1.7 3.5 4M14.5 18c0-2.3 1.6-4 3.5-4s3.5 1.7 3.5 4" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin/operacao",
     label: "Modo operação",
     ativo: (p: string) => p.startsWith("/admin/operacao"),

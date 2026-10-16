@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { reservaBrand } from "@/lib/reservaBrand";
 import { baixarIcsDaReserva } from "@/lib/ics";
 import {
@@ -15,6 +16,7 @@ import {
   diaDaData,
   formatarDataCurta,
   listaDeMesas,
+  lugaresLivres,
   relogioSaoPaulo,
   reservar,
   rotuloDaData,
@@ -36,8 +38,9 @@ import MenuMobile from "./MenuMobile";
 import SeletorDeData from "./SeletorDeData";
 import { useDiasFechados, type DiaFechado } from "@/lib/diasFechados";
 import { useMesasConfig } from "@/lib/mesas";
+import { entrarNaFila } from "@/lib/fila";
 
-type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada";
+type Etapa = "inicio" | "horario" | "mesa" | "dados" | "revisar" | "confirmada" | "fila";
 
 const ZONAS = [
   { chave: "Salão principal" as const, label: "Salão principal" },
@@ -53,6 +56,7 @@ function rotuloZona(zona: Mesa["zona"]): string {
 export default function ReservasPage() {
   // só quais mesas estão tomadas em cada data — o site do cliente não recebe
   // nome nem telefone de ninguém
+  const router = useRouter();
   const { ocupadas, recarregar: recarregarMesas } = useMesasOcupadas();
   const { mesas } = useMesasConfig();
   const { fechados } = useDiasFechados();
@@ -201,6 +205,33 @@ export default function ReservasPage() {
     setAlertaMesa(null);
   }
 
+  // Data lotada para este grupo: as mesas livres não somam lugares para todos.
+  // Aí, em vez de "Buscar mesas", o site oferece a fila de espera.
+  const lotado = Boolean(data) && !fechados.has(data ?? "") && lugaresLivres(mesas, ocupadas, dia, horario, data ?? "") < pessoas;
+  const [enviandoFila, setEnviandoFila] = useState(false);
+  const [erroFila, setErroFila] = useState<string | null>(null);
+
+  async function entrarFila() {
+    if (!data || !nomeOk || !telefoneOk || enviandoFila) return;
+    setEnviandoFila(true);
+    setErroFila(null);
+    const r = await entrarNaFila({
+      dataReserva: data,
+      horario,
+      pessoas,
+      nome: nome.trim(),
+      telefone: telefone.trim(),
+      observacao: observacao.trim() || undefined,
+    });
+    if (r.erro || !r.codigo) {
+      setEnviandoFila(false);
+      setErroFila(r.erro ?? "Não foi possível entrar na fila agora. Tente de novo.");
+      return;
+    }
+    // a página de acompanhamento é o "comprovante" da espera
+    router.push(`/fila/${r.codigo}`);
+  }
+
   if (etapa === "inicio") {
     return (
       <TelaInicio
@@ -213,6 +244,8 @@ export default function ReservasPage() {
         pessoasCustom={pessoasCustom}
         setPessoasCustom={setPessoasCustom}
         onBuscar={() => setEtapa("horario")}
+        lotado={lotado}
+        onFila={() => { setErroFila(null); setEtapa("fila"); }}
       />
     );
   }
@@ -535,6 +568,48 @@ export default function ReservasPage() {
       </header>
 
       <div className="flex-1 flex flex-col max-w-xl w-full mx-auto px-5 sm:px-8 pb-12">
+        {/* FILA DE ESPERA — data lotada para o grupo */}
+        {etapa === "fila" && (
+          <div className="flex flex-col gap-5 pt-4 sm:pt-6">
+            <button onClick={() => setEtapa("inicio")} className="text-sm font-medium self-start" style={{ color: "var(--color-text-muted)" }}>
+              ← Voltar
+            </button>
+            <div>
+              <h1 className="font-display text-2xl">Fila de espera</h1>
+              <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                {rotuloData} · {pessoas} pessoa{pessoas === 1 ? "" : "s"} · {horario.replace(":", "h")}. Não há mesas livres para o seu grupo nesta data.
+                Se alguém cancelar, o restaurante chama você no WhatsApp, por ordem de chegada na fila.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Campo label="Nome completo">
+                <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
+              </Campo>
+              <Campo label="WhatsApp" aviso={avisoTelefone}>
+                <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
+              </Campo>
+              <Campo label="Observação (opcional)">
+                <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: pode ser na área externa" rows={2} maxLength={LIMITES.observacao} className="w-full outline-none text-sm bg-transparent resize-none" />
+              </Campo>
+            </div>
+
+            {erroFila && <p role="alert" className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erroFila}</p>}
+
+            <button
+              onClick={entrarFila}
+              disabled={!nomeOk || !telefoneOk || enviandoFila}
+              className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
+              style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+            >
+              {enviandoFila ? "Entrando na fila…" : "Entrar na fila de espera"}
+            </button>
+            <p className="text-xs text-center leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+              Entrar na fila não garante a mesa. Você recebe um link para acompanhar sua posição.
+            </p>
+          </div>
+        )}
+
         {/* TELA 5 — REVISAR */}
         {etapa === "revisar" && horario && escolhidas.length > 0 && (
           <div className="flex flex-col gap-5 pt-4 sm:pt-6">
@@ -897,6 +972,8 @@ function TelaInicio({
   pessoasCustom,
   setPessoasCustom,
   onBuscar,
+  lotado,
+  onFila,
 }: {
   /** Todas as datas que dá pra reservar (de amanhã até dois meses à frente). */
   datas: DataDisponivel[];
@@ -910,6 +987,10 @@ function TelaInicio({
   pessoasCustom: boolean;
   setPessoasCustom: (b: boolean) => void;
   onBuscar: () => void;
+  /** Não sobram lugares para o grupo na data escolhida. */
+  lotado: boolean;
+  /** Abre a fila de espera da data escolhida. */
+  onFila: () => void;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const [calendarioAberto, setCalendarioAberto] = useState(false);
@@ -975,6 +1056,18 @@ function TelaInicio({
       {fechadoNoDiaEscolhido.motivo ? ` — ${fechadoNoDiaEscolhido.motivo}` : ""}. Escolha outro dia para reservar.
     </p>
   ) : null;
+
+  const avisoLotado =
+    lotado && !fechadoNoDiaEscolhido ? (
+      <p
+        role="status"
+        className="text-[13.5px] leading-snug px-3.5 py-3"
+        style={{ background: "var(--color-secondary-soft)", border: "1.5px solid var(--color-secondary)", color: "var(--color-dark)", borderRadius: "12px" }}
+      >
+        <strong>Lotado em {diaLabel} para {pessoas} pessoa{pessoas === 1 ? "" : "s"}.</strong> Entre na fila de espera: se uma mesa liberar, o restaurante chama
+        você no WhatsApp. Ou escolha outra data.
+      </p>
+    ) : null;
 
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
@@ -1057,13 +1150,14 @@ function TelaInicio({
             <div className="p-3 flex flex-col gap-2.5">
               <div className="px-1.5 pt-0.5">{atalhoCalendario}</div>
               {avisoFechado}
+              {avisoLotado}
               <button
-                onClick={onBuscar}
+                onClick={lotado ? onFila : onBuscar}
                 disabled={!data || Boolean(fechadoNoDiaEscolhido)}
                 className="w-full py-3.5 text-[14.5px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "999px" }}
               >
-                Buscar mesas
+                {lotado ? "Entrar na fila de espera" : "Buscar mesas"}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </button>
             </div>
@@ -1136,13 +1230,14 @@ function TelaInicio({
                 <div className="p-4 flex flex-col gap-3">
                   <div className="px-1">{atalhoCalendario}</div>
                   {avisoFechado}
+                  {avisoLotado}
                   <button
-                    onClick={onBuscar}
+                    onClick={lotado ? onFila : onBuscar}
                     disabled={!data || Boolean(fechadoNoDiaEscolhido)}
                     className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ background: "var(--color-primary)", borderRadius: "12px" }}
                   >
-                    Buscar mesas
+                    {lotado ? "Entrar na fila de espera" : "Buscar mesas"}
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                   </button>
                 </div>

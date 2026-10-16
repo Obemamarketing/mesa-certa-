@@ -88,7 +88,8 @@ const CODIGOS_TEMPORARIOS = new Set([1, 2, 4, 17, 80007, 130429, 131000, 131016,
 export async function enviarTemplate(config: ConfigWhatsapp, telefone: string, parametros: string[]): Promise<ResultadoEnvio> {
   const url = `https://graph.facebook.com/${config.versao}/${config.phoneNumberId}/messages`;
   const controle = new AbortController();
-  const timer = setTimeout(() => controle.abort(), 15000);
+  // 10 s por envio: com o limite de tempo da rota, sobra folga para gravar o resultado
+  const timer = setTimeout(() => controle.abort(), 10000);
 
   try {
     const resposta = await fetch(url, {
@@ -129,7 +130,7 @@ export async function enviarTemplate(config: ConfigWhatsapp, telefone: string, p
     const abortou = e instanceof Error && e.name === "AbortError";
     return {
       ok: false,
-      erro: abortou ? "WhatsApp API: tempo esgotado (15s)" : `Falha de rede ao chamar a WhatsApp API: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500),
+      erro: abortou ? "WhatsApp API: tempo esgotado (10s)" : `Falha de rede ao chamar a WhatsApp API: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500),
       tentarDeNovo: true,
     };
   } finally {

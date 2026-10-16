@@ -33,6 +33,8 @@ import StatCard from "./StatCard";
 import StatusBadge from "./StatusBadge";
 import NewReservationModal from "./NewReservationModal";
 import BotaoPlanilha from "./BotaoPlanilha";
+import Link from "next/link";
+import { useFilaDeEspera } from "@/lib/fila";
 
 const ICONE_CALENDARIO = (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
@@ -54,6 +56,7 @@ export default function ReservasAdminPage() {
   const { reservas, carregando } = useReservas();
   const { mesas } = useMesasConfig();
   const { fechados } = useDiasFechados();
+  const { esperas } = useFilaDeEspera();
   const [indiceData, setIndiceData] = useState(0);
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [painelMobile, setPainelMobile] = useState<"planta" | "reservas" | "lista">("planta");
@@ -230,6 +233,26 @@ export default function ReservasAdminPage() {
             </button>
           </div>
         </div>
+
+        {/* quem está na fila de espera desta data (aparece também no celular) */}
+        {(() => {
+          const naFila = esperas.filter((e) => e.dataReserva === dataAtiva && (e.status === "aguardando" || e.status === "chamado"));
+          if (naFila.length === 0) return null;
+          const pessoasNaFila = naFila.reduce((s, e) => s + e.pessoas, 0);
+          return (
+            <Link
+              href="/admin/fila"
+              className="flex items-center justify-between gap-3 px-4 py-3 border"
+              style={{ borderColor: "var(--color-secondary)", background: "var(--color-secondary-soft)", borderRadius: "var(--radius-md)" }}
+            >
+              <span className="text-sm">
+                <strong>Fila de espera:</strong> {naFila.length} pedido{naFila.length === 1 ? "" : "s"} ({pessoasNaFila} pessoa{pessoasNaFila === 1 ? "" : "s"}) para esta data.
+                {mesasOcupadas < mesas.length ? " Há mesa livre — dá para chamar." : ""}
+              </span>
+              <span className="text-sm font-semibold shrink-0" style={{ color: "var(--color-primary)" }}>Ver fila →</span>
+            </Link>
+          );
+        })()}
 
         {/* KPIs operacionais */}
         <div className={`flex-wrap gap-3 ${painelMobile === "reservas" ? "flex" : "hidden lg:flex"}`}>

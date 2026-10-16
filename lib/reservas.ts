@@ -352,6 +352,7 @@ export async function reservar(dados: DadosDaReserva): Promise<ResultadoDaReserv
     if (/LIMITE_DE_RESERVAS/.test(msg)) {
       return { reservas: [], erro: "Este telefone já tem muitas reservas em aberto. Para reservar mais, fale com o restaurante." };
     }
+    if (/DADOS_INVALIDOS: horario/.test(msg)) return { reservas: [], erro: "Esse horário não está disponível para reserva." };
     if (/DADOS_INVALIDOS: telefone/.test(msg)) return { reservas: [], erro: "Confira o telefone: DDD + número." };
     if (/DADOS_INVALIDOS: nome/.test(msg)) return { reservas: [], erro: "Confira o nome da reserva." };
     if (/DADOS_INVALIDOS: email/.test(msg)) return { reservas: [], erro: "Confira o e-mail." };
@@ -554,6 +555,15 @@ export const ROTULO_STATUS_CHEGADA: Record<StatusChegada, string> = {
   chegou: "Cliente chegou",
   cancelada: "Cancelada",
 };
+
+// Quantos lugares ainda estão livres numa data (somando as mesas livres). Se
+// for menos que o grupo, a data está "lotada" para ele: aí o site oferece a
+// fila de espera. (O grupo pode ocupar várias mesas, por isso a soma.)
+export function lugaresLivres(todasAsMesas: Mesa[], reservas: Ocupacao[], dia: DiaReserva, horario: string, dataIso: string): number {
+  return todasAsMesas
+    .filter((m) => statusMesa(reservas, dia, horario, m, undefined, dataIso) === "livre")
+    .reduce((soma, m) => soma + m.capacidade, 0);
+}
 
 export function mesasDisponiveisPara(reservas: Ocupacao[], dia: DiaReserva, horario: string, pessoas: number): Mesa[] {
   return mesas.filter((m) => statusMesa(reservas, dia, horario, m, pessoas) === "livre");

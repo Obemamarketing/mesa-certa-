@@ -1,8 +1,8 @@
 "use client";
 
 // Faixa do topo do painel NO CELULAR. No computador quem cumpre esse papel é a
-// barra lateral. A barra de baixo do celular não tem espaço para Configurações
-// nem para o Sair — os dois ficam aqui.
+// barra lateral. A barra de baixo do celular não tem espaço para a Fila de
+// espera, Configurações e o Sair — ficam aqui.
 
 import Image from "next/image";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import SairDoPainel from "./SairDoPainel";
 export default function BarraDoTopo() {
   const pathname = usePathname();
   const emConfiguracoes = pathname.startsWith("/admin/configuracoes");
+  const naFila = pathname.startsWith("/admin/fila");
 
   return (
     <header
@@ -27,6 +28,17 @@ export default function BarraDoTopo() {
       </Link>
 
       <div className="flex items-center gap-1.5 shrink-0">
+        <Link
+          href="/admin/fila"
+          aria-label="Fila de espera"
+          aria-current={naFila ? "page" : undefined}
+          className="w-10 h-10 flex items-center justify-center"
+          style={{ color: naFila ? "var(--color-primary)" : "var(--color-text-muted)" }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+            <circle cx="6" cy="8" r="2.4" /><circle cx="12" cy="8" r="2.4" /><circle cx="18" cy="8" r="2.4" /><path d="M2.5 18c0-2.3 1.6-4 3.5-4s3.5 1.7 3.5 4M8.5 18c0-2.3 1.6-4 3.5-4s3.5 1.7 3.5 4M14.5 18c0-2.3 1.6-4 3.5-4s3.5 1.7 3.5 4" />
+          </svg>
+        </Link>
         <Link
           href="/admin/configuracoes"
           aria-label="Configurações"

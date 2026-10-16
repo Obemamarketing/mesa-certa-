@@ -22,9 +22,15 @@ const DATAS_RAPIDAS = 3;
 export default function NewReservationModal({
   reservas,
   dataInicial,
+  inicial,
+  onCriada,
   onFechar,
 }: {
   reservas: Reserva[];
+  /** Dados já conhecidos do cliente (quem vem da fila de espera). */
+  inicial?: { nome: string; telefone: string; pessoas: number; observacao?: string };
+  /** Chamada com as reservas criadas, antes de fechar. */
+  onCriada?: (criadas: Reserva[]) => void;
   /** Data sugerida (a que o painel está mostrando). Se não der pra reservar
    *  nela — hoje, por exemplo —, vale a primeira data aberta da agenda. */
   dataInicial?: string;
@@ -41,12 +47,12 @@ export default function NewReservationModal({
   const dia = diaDaData(data) ?? "sexta";
   const horario = HORARIO_FIXO;
   const [calendarioAberto, setCalendarioAberto] = useState(false);
-  const [pessoas, setPessoas] = useState(2);
+  const [pessoas, setPessoas] = useState(inicial?.pessoas ?? 2);
   const [mesaNumero, setMesaNumero] = useState<string | null>(null);
-  const [nome, setNome] = useState("");
-  const [telefone, setTelefone] = useState("");
+  const [nome, setNome] = useState(inicial?.nome ?? "");
+  const [telefone, setTelefone] = useState(inicial?.telefone ?? "");
   const [aniversario, setAniversario] = useState("");
-  const [observacao, setObservacao] = useState("");
+  const [observacao, setObservacao] = useState(inicial?.observacao ?? "");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -91,6 +97,7 @@ export default function NewReservationModal({
       setErro(mensagemErro ?? "Não foi possível criar a reserva.");
       return;
     }
+    onCriada?.(criadas);
     onFechar();
   }
 

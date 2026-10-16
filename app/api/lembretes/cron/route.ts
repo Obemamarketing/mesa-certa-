@@ -7,27 +7,15 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { criarSupabaseServidor, supabaseServidorConfigurado } from "@/lib/lembretes/supabaseServidor";
 import { enviarTemplate, lerConfigWhatsapp } from "@/lib/lembretes/whatsappCloud";
-import { parametrosDoTemplate } from "@/lib/lembretes/mensagem";
+import { processarLote, type Reivindicado } from "@/lib/lembretes/processar";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const MAX_TENTATIVAS = 3;
 const LOTE = 20;
-
-type Reivindicado = {
-  lembrete_id: string;
-  reserva_id: string;
-  nome: string;
-  telefone: string;
-  pessoas: number;
-  mesa_numero: string;
-  horario: string;
-  data_reserva: string | null;
-  tentativas: number;
-};
-
-const soDigitos = (t: string) => t.replace(/\D/g, "");
+// A Vercel encerra a rota em maxDuration (60 s). Depois de 40 s não começa
+// envio novo: o que sobrou volta pra fila para a próxima rodada.
+const ORCAMENTO_MS = 40_000;
 
 function autorizado(request: NextRequest): boolean {
   const segredo = process.env.CRON_SECRET;
@@ -40,6 +28,7 @@ function autorizado(request: NextRequest): boolean {
 }
 
 async function executar(request: NextRequest) {
+  const inicio = Date.now();
   if (!process.env.CRON_SECRET) {
     return NextResponse.json({ erro: "CRON_SECRET não configurado no servidor" }, { status: 503 });
   }
@@ -73,22 +62,10 @@ async function executar(request: NextRequest) {
   }
 
   const lote = (data ?? []) as Reivindicado[];
-  const resumo = { reivindicados: lote.length, enviados: 0, falhas: 0, repetir: 0, cancelados: 0, erros_ao_gravar: 0 };
 
   // Nada vencido neste ciclo (o normal, na maioria das vezes de 5 em 5 min).
   if (lote.length === 0) {
-    return NextResponse.json({ ok: true, ...resumo });
-  }
-
-  // Gravar o resultado é o que impede o mesmo lembrete de sair duas vezes. Se
-  // a gravação falhar, o envio já aconteceu: não dá pra desfazer, mas o erro
-  // não pode passar em silêncio — vai pro log da Vercel e pro resumo.
-  async function gravar(ids: string[], campos: Record<string, unknown>) {
-    const { error } = await supabase.from("lembretes_whatsapp").update(campos).in("id", ids);
-    if (error) {
-      resumo.erros_ao_gravar++;
-      console.error(`lembretes: não gravou o resultado de ${ids.join(", ")}: ${error.message}`);
-    }
+    return NextResponse.json({ ok: true, reivindicados: 0 });
   }
 
   // Área de cada mesa vem da configuração central: se o administrador renomeou
@@ -100,78 +77,45 @@ async function executar(request: NextRequest) {
   }
 
   // Última conferência antes de enviar: a reserva pode ter sido cancelada
-  // nesse meio-tempo. Uma consulta só, pra todo o lote.
-  const { data: estados } = await supabase
+  // nesse meio-tempo. Uma consulta só, pra todo o lote. Se ela falhar, ativas
+  // fica null e nada é enviado nem cancelado nesta rodada.
+  const { data: estados, error: erroEstados } = await supabase
     .from("reservas")
     .select("id, cancelada")
     .in("id", lote.map((i) => i.reserva_id));
-  const ativas = new Set(((estados ?? []) as { id: string; cancelada: boolean }[]).filter((r) => !r.cancelada).map((r) => r.id));
+  if (erroEstados) console.error(`lembretes: não conferiu as reservas do lote: ${erroEstados.message}`);
+  const ativas = erroEstados
+    ? null
+    : new Set(((estados ?? []) as { id: string; cancelada: boolean }[]).filter((r) => !r.cancelada).map((r) => r.id));
 
-  const vivos: Reivindicado[] = [];
-  for (const item of lote) {
-    if (ativas.has(item.reserva_id)) {
-      vivos.push(item);
-      continue;
-    }
-    await gravar([item.lembrete_id], { status: "cancelado", atualizado_em: new Date().toISOString() });
-    resumo.cancelados++;
-  }
+  const resumo = await processarLote(lote, {
+    ativas,
+    zonaPorMesa,
+    enviar: (telefone, parametros) => enviarTemplate(config, telefone, parametros),
+    // Gravar o resultado é o que impede o mesmo lembrete de sair duas vezes.
+    // Se a gravação falhar depois de enviar, não dá pra desfazer o envio — mas
+    // o erro não passa em silêncio: vai pro log da Vercel e pro resumo.
+    gravar: async (ids, campos) => {
+      let tudoCerto = true;
+      const porValor = new Map<string, string[]>();
+      for (const id of ids) {
+        const chave = JSON.stringify(campos(id));
+        porValor.set(chave, [...(porValor.get(chave) ?? []), id]);
+      }
+      for (const [chave, grupo] of porValor) {
+        const { error } = await supabase.from("lembretes_whatsapp").update(JSON.parse(chave)).in("id", grupo);
+        if (error) {
+          tudoCerto = false;
+          console.error(`lembretes: não gravou o resultado de ${grupo.join(", ")}: ${error.message}`);
+        }
+      }
+      return tudoCerto;
+    },
+    decorrido: () => Date.now() - inicio,
+    orcamentoMs: ORCAMENTO_MS,
+  });
 
-  // Grupo que reservou mais de uma mesa tem uma reserva por mesa, mas o
-  // cliente é um só: junta pelo mesmo WhatsApp, nome e data e manda UM aviso.
-  const grupos = new Map<string, Reivindicado[]>();
-  for (const item of vivos) {
-    const chave = [soDigitos(item.telefone), item.nome.trim().toLowerCase(), item.data_reserva ?? ""].join("|");
-    grupos.set(chave, [...(grupos.get(chave) ?? []), item]);
-  }
-
-  for (const membros of grupos.values()) {
-    const lider = membros[0];
-    const mesasDoGrupo = membros.map((m) => m.mesa_numero).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
-    const zonasDoGrupo = [...new Set(mesasDoGrupo.map((n) => zonaPorMesa.get(n)).filter((z): z is string => Boolean(z)))];
-    const idsDosLembretes = membros.map((m) => m.lembrete_id);
-    const tentativas = Math.max(...membros.map((m) => m.tentativas));
-
-    const resultado = await enviarTemplate(
-      config,
-      lider.telefone,
-      parametrosDoTemplate({
-        reservaId: lider.reserva_id,
-        nome: lider.nome,
-        pessoas: membros.reduce((soma, m) => soma + m.pessoas, 0),
-        mesaNumero: mesasDoGrupo[0],
-        mesasDoGrupo,
-        zonasDoGrupo,
-        horario: lider.horario,
-      }),
-    );
-
-    // o resultado vale pra todas as reservas do grupo
-    const agora = new Date().toISOString();
-    if (resultado.ok) {
-      await gravar(idsDosLembretes, {
-        status: "enviado",
-        enviado_em: agora,
-        wa_message_id: resultado.messageId,
-        erro: membros.length > 1 ? `Aviso único enviado para as mesas ${mesasDoGrupo.join(", ")}` : null,
-        atualizado_em: agora,
-      });
-      resumo.enviados++;
-    } else if (resultado.tentarDeNovo && tentativas < MAX_TENTATIVAS) {
-      // falha temporária: volta pra fila, o próximo ciclo (5 min) tenta de novo
-      await gravar(idsDosLembretes, {
-        status: "pendente",
-        erro: `Tentativa ${tentativas}/${MAX_TENTATIVAS}: ${resultado.erro}`,
-        atualizado_em: agora,
-      });
-      resumo.repetir++;
-    } else {
-      await gravar(idsDosLembretes, { status: "falhou", erro: resultado.erro, atualizado_em: agora });
-      resumo.falhas++;
-    }
-  }
-
-  return NextResponse.json({ ok: true, ...resumo });
+  return NextResponse.json({ ok: !erroEstados, ...resumo }, { status: erroEstados ? 500 : 200 });
 }
 
 export async function POST(request: NextRequest) {

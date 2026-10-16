@@ -12,7 +12,8 @@
 --     1. no máximo N mesas por reserva;
 --     2. no máximo N mesas em reservas futuras por telefone;
 --     3. no máximo N mesas reservadas PELO SITE nos últimos 10 minutos, somando
---        todo mundo (segura um ataque em rajada).
+--        todo mundo (segura um ataque em rajada);
+--     4. só nos horários da casa (horarios_permitidos, hoje "19:30").
 --   O que o administrador reserva pelo painel não entra nas contas e não é
 --   barrado: o balcão às vezes precisa reservar muito de uma vez.
 --
@@ -37,6 +38,9 @@ create table if not exists limites_reserva (
   mesas_por_10_minutos int not null default 30 check (mesas_por_10_minutos >= 1)
 );
 alter table limites_reserva drop column if exists datas_por_telefone;
+-- horários em que o SITE aceita reserva ("19:30"). Sem isto, alguém chamando
+-- a função por fora da tela gravaria reserva às 3h da manhã.
+alter table limites_reserva add column if not exists horarios_permitidos text[] not null default '{19:30}';
 insert into limites_reserva (id) values (1) on conflict (id) do nothing;
 
 -- Só o SQL Editor (e o servidor) mexe nos limites. Ninguém lê pela API.
@@ -94,7 +98,7 @@ begin
   if v_email is not null and (char_length(v_email) > 120 or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$') then
     raise exception 'DADOS_INVALIDOS: email' using errcode = 'P0001';
   end if;
-  if p_horario is null or p_horario !~ '^[0-2][0-9]:[0-5][0-9]$' then
+  if p_horario is null or p_horario !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
     raise exception 'DADOS_INVALIDOS: horario' using errcode = 'P0001';
   end if;
   if p_data is null then
@@ -113,7 +117,15 @@ begin
   if not v_admin then
     select * into v_limites from limites_reserva where id = 1;
     if not found then
-      v_limites := row(1, 15, 15, 30)::limites_reserva;
+      v_limites.mesas_por_reserva := 15;
+      v_limites.mesas_por_telefone := 15;
+      v_limites.mesas_por_10_minutos := 30;
+      v_limites.horarios_permitidos := '{19:30}';
+    end if;
+
+    -- o site só reserva nos horários da casa (o painel pode abrir exceção)
+    if not (p_horario = any (v_limites.horarios_permitidos)) then
+      raise exception 'DADOS_INVALIDOS: horario' using errcode = 'P0001';
     end if;
 
     -- uma reserva de cada vez por telefone: duas abas mandando juntas não

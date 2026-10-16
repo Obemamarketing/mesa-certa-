@@ -6,6 +6,9 @@ Sistema de reservas de mesa para restaurantes. A marca fica em
 - **Cliente** (`/`): escolhe dia, pessoas e mesa na planta, confirma a reserva.
   `/consulta` mostra a reserva pelo nome e cancela conferindo os 4 últimos
   dígitos do telefone.
+- **Fila de espera**: quando a data lota para o grupo, o site oferece entrar na
+  fila; a pessoa acompanha a posição em `/fila/<código>` e o restaurante chama
+  pelo painel (Fila de espera).
 - **Administração** (`/admin`, com login): reservas, modo operação (check-in),
   planta de mesas, calendário de dias fechados, movimento (mesas reservadas e
   pessoas que vieram, noite a noite e semana contra semana), clientes, lembretes
