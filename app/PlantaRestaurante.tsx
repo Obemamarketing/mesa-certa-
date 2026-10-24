@@ -19,6 +19,7 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { statusMesa, type DiaReserva, type Ocupacao } from "@/lib/reservas";
 import { MESAS_PADRAO, type MesaConfig } from "@/lib/mesas";
+import { reservaBrand } from "@/lib/reservaBrand";
 
 export const IMAGEM_PLANTA = "/planta-zepelin.webp";
 
@@ -260,8 +261,8 @@ export default function PlantaRestaurante({
       role="group"
       aria-label={
         selecionada
-          ? `Planta do ZéPelin. ${marcadas.length > 1 ? `As mesas ${marcadas.join(", ")} estão destacadas` : `A mesa ${selecionada.numero}, no ${selecionada.zona}, está destacada`}.`
-          : "Planta do ZéPelin, com as mesas por ambiente."
+          ? `Planta do ${reservaBrand.restauranteAtual}. ${marcadas.length > 1 ? `As mesas ${marcadas.join(", ")} estão destacadas` : `A mesa ${selecionada.numero}, no ${selecionada.zona}, está destacada`}.`
+          : `Planta do ${reservaBrand.restauranteAtual}, com as mesas por ambiente.`
       }
     >
       <div

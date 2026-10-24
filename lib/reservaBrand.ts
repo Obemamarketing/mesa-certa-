@@ -15,7 +15,7 @@ export const reservaBrand = {
     mostarda: "#D99A18",
     mostardaEscura: "#96690F",
     erro: "#7F1717",
-    textoSecundario: "#8A8178",
+    textoSecundario: "#6F665E",
     borda: "#E7DED2",
   },
   heroGradiente: "linear-gradient(165deg, #7F1717 0%, #5C1010 65%, #2A1712 100%)",

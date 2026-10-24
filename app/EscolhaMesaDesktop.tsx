@@ -112,7 +112,7 @@ export default function EscolhaMesaDesktop({
       {/* ---------------- HEADER ---------------- */}
       <header className="flex items-center justify-between gap-8 px-10 py-5">
         <Link href="/" className="flex items-center gap-3 shrink-0">
-          <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={46} height={46} className="rounded-full" />
+          <Image src="/logo-zeplin.jpg" alt="" width={46} height={46} className="rounded-full" />
           <span className="flex flex-col leading-none">
             <span className="font-display text-[23px]" style={{ color: "var(--color-dark)" }}>
               {reservaBrand.restauranteAtual}

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
 import { cardapio, type ItemDoCardapio, type SecaoDoCardapio } from "@/lib/cardapio";
+import RodapeLegal from "../RodapeLegal";
 
 export const metadata: Metadata = {
   title: `Cardápio · ${reservaBrand.restauranteAtual}`,
@@ -84,10 +85,14 @@ export default function CardapioPage() {
 
       <footer className="max-w-6xl w-full mx-auto px-5 sm:px-10 pb-14 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" >
         <p className="text-[13px] leading-relaxed max-w-md" style={{ color: "var(--color-text-muted)" }}>
-          Cardápio sujeito a alterações. Valores e disponibilidade do dia direto com a equipe do {reservaBrand.restauranteAtual}.
+          Cardápio sujeito a alterações. Valores e disponibilidade do dia direto com a equipe do {reservaBrand.restauranteAtual}. Tem alergia ou
+          restrição alimentar? Avise a equipe antes de pedir.
+          <br />
+          <strong style={{ color: "var(--color-dark)" }}>Venda de bebidas alcoólicas proibida para menores de 18 anos. Beba com moderação. Se beber, não dirija.</strong>
         </p>
         <BotaoReservar />
       </footer>
+      <RodapeLegal />
     </main>
   );
 }

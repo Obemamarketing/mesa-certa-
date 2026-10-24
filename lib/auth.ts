@@ -25,6 +25,8 @@ export type Acesso =
   | { estado: "sem-permissao"; email: string }
   /** Logado, mas não deu pra conferir se é administrador (sem conexão, banco sem a migração). */
   | { estado: "erro"; email: string; mensagem: string }
+  /** Senha certa, falta o código do app autenticador (duas etapas ativadas). */
+  | { estado: "codigo"; email: string; fatorId: string }
   /** Administrador logado. */
   | { estado: "dentro"; email: string };
 
@@ -49,13 +51,34 @@ async function conferir(sessao: Session | null) {
     return;
   }
 
+  const minha = ++rodada;
+  const email = sessao.user.email ?? "";
+
+  // Duas etapas ativadas e a sessão ainda só com a senha: antes de qualquer
+  // coisa, pede o código do app. (O banco também exige: sem o código, ele não
+  // trata a pessoa como administradora.) Vale também para quem já estava
+  // dentro: se as duas etapas foram ativadas em outro aparelho, este passa a
+  // pedir o código na próxima renovação do login.
+  const { data: nivel } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (minha !== rodada) return;
+  const precisaDoCodigo = Boolean(nivel && nivel.nextLevel === "aal2" && nivel.currentLevel !== "aal2");
+
   // O Supabase avisa "logado" de novo cada vez que a aba volta ao foco e a cada
   // renovação do login. Quem já está dentro não é conferido outra vez: isso
   // desmontaria o painel inteiro no meio do serviço.
-  if (acesso.estado === "dentro" && usuarioConferido === sessao.user.id) return;
+  if (!precisaDoCodigo && acesso.estado === "dentro" && usuarioConferido === sessao.user.id) return;
 
-  const minha = ++rodada;
-  const email = sessao.user.email ?? "";
+  if (precisaDoCodigo) {
+    const { data: fatores } = await supabase.auth.mfa.listFactors();
+    if (minha !== rodada) return;
+    const fator = fatores?.totp.find((f) => f.status === "verified");
+    if (fator) {
+      usuarioConferido = null;
+      publicar({ estado: "codigo", email, fatorId: fator.id });
+      return;
+    }
+  }
+
   const { data, error } = await supabase.rpc("eh_admin");
   if (minha !== rodada) return;
 
@@ -117,6 +140,69 @@ export async function entrar(email: string, senha: string): Promise<{ erro?: str
   }
   console.error("Erro ao entrar:", error.message);
   return { erro: "Não foi possível entrar agora. Verifique a conexão com a internet e tente de novo." };
+}
+
+// Segunda etapa do login: o código de 6 números do app autenticador.
+export async function confirmarCodigo(fatorId: string, codigo: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: fatorId, code: codigo.replace(/\D/g, "") });
+  if (!error) return {}; // o aviso do Supabase abre o painel
+  if (/invalid|incorrect|expired/i.test(error.message)) return { erro: "Código incorreto ou vencido. Confira o app e digite o código atual." };
+  if (error.status === 429) return { erro: "Muitas tentativas seguidas. Espere um minuto e tente de novo." };
+  console.error("Erro ao confirmar o código:", error.message);
+  return { erro: "Não foi possível confirmar o código agora. Tente de novo." };
+}
+
+// --------------------------------------------- ativar / desativar duas etapas
+
+export type DuasEtapas = { ativadas: boolean; fatorId: string | null };
+
+export async function situacaoDuasEtapas(): Promise<DuasEtapas | null> {
+  const { data, error } = await supabase.auth.mfa.listFactors();
+  if (error) return null;
+  const fator = data.totp.find((f) => f.status === "verified");
+  return { ativadas: Boolean(fator), fatorId: fator?.id ?? null };
+}
+
+export type NovaAtivacao = { fatorId: string; qrCode: string; segredo: string };
+
+// Começa a ativação: o Supabase devolve o QR Code para o app autenticador.
+// Ativação que ficou pela metade antes é descartada (senão o Supabase recusa
+// criar outra com o mesmo nome).
+export async function comecarDuasEtapas(): Promise<{ ativacao?: NovaAtivacao; erro?: string }> {
+  const { data: atuais } = await supabase.auth.mfa.listFactors();
+  for (const f of atuais?.all ?? []) {
+    if (f.status === "unverified") await supabase.auth.mfa.unenroll({ factorId: f.id });
+  }
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: `Painel ${new Date().toISOString().slice(0, 16)}` });
+  if (error || !data) {
+    console.error("Erro ao ativar duas etapas:", error?.message);
+    return { erro: /disabled|not enabled/i.test(error?.message ?? "") ? "As duas etapas estão desligadas no Supabase (Authentication > Multi-Factor). Peça ao suporte para ligar." : "Não foi possível começar a ativação agora. Tente de novo." };
+  }
+  return { ativacao: { fatorId: data.id, qrCode: imagemDoQr(data.totp.qr_code), segredo: data.totp.secret } };
+}
+
+// O Supabase devolve o QR Code como SVG colado num "data:" sem codificar. Um
+// "#" de cor dentro do SVG corta o endereço da imagem e ela não aparece:
+// codifica a parte do SVG antes de usar.
+function imagemDoQr(qr: string): string {
+  const virgula = qr.indexOf(",");
+  if (!qr.startsWith("data:image/svg+xml") || virgula < 0) return qr;
+  const svg = qr.slice(virgula + 1);
+  return svg.trimStart().startsWith("<") ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : qr;
+}
+
+// Termina a ativação com o primeiro código que o app mostra.
+export async function terminarDuasEtapas(fatorId: string, codigo: string): Promise<{ erro?: string }> {
+  return confirmarCodigo(fatorId, codigo);
+}
+
+export async function desativarDuasEtapas(fatorId: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.auth.mfa.unenroll({ factorId: fatorId });
+  if (error) {
+    console.error("Erro ao desativar duas etapas:", error.message);
+    return { erro: "Não foi possível desativar agora. Tente de novo." };
+  }
+  return {};
 }
 
 // Sai só deste aparelho: o tablet do salão não é deslogado porque alguém saiu

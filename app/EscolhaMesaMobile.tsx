@@ -123,7 +123,7 @@ export default function EscolhaMesaMobile({
       {/* ---------------- HEADER ---------------- */}
       <header className="flex items-center justify-between px-4 py-3">
         <Link href="/" className="flex items-center gap-2.5">
-          <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={38} height={38} className="rounded-full" />
+          <Image src="/logo-zeplin.jpg" alt="" width={38} height={38} className="rounded-full" />
           <span className="font-display text-[19px] leading-none" style={{ color: "var(--color-dark)" }}>
             {reservaBrand.restauranteAtual}
           </span>

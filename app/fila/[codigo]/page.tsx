@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import RodapeLegal from "../../RodapeLegal";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { reservaBrand } from "@/lib/reservaBrand";
@@ -73,7 +74,7 @@ export default function AcompanharFilaPage() {
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
       <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
-        <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+        <Link href="/" aria-label={`${reservaBrand.restauranteAtual} — início`}><Image src="/logo-zeplin.jpg" alt="" width={44} height={44} className="rounded-full" /></Link>
         <Link href="/" className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>← Início</Link>
       </header>
 
@@ -187,6 +188,9 @@ export default function AcompanharFilaPage() {
             Guarde este link: é por ele que você acompanha a sua espera. Entrar na fila não garante a mesa.
           </p>
         )}
+      </div>
+      <div className="mt-auto pt-10">
+        <RodapeLegal />
       </div>
     </main>
   );

@@ -7,7 +7,7 @@ import { ZONAS_DA_PLANTA } from "@/lib/regras";
 const CORES: Record<string, { bg: string; border: string; text: string }> = {
   livre: { bg: "var(--color-accent)", border: "var(--color-accent-dark)", text: "#fff" },
   selecionada: { bg: "var(--color-primary)", border: "var(--color-primary-dark)", text: "#fff" },
-  reservada: { bg: "var(--color-secondary)", border: "var(--color-secondary-dark)", text: "#fff" },
+  reservada: { bg: "var(--color-secondary)", border: "var(--color-secondary-dark)", text: "var(--color-dark)" },
   ocupada: { bg: "var(--color-primary)", border: "var(--color-primary-dark)", text: "#fff" },
   pequena: { bg: "var(--color-border)", border: "var(--color-border)", text: "var(--color-text-muted)" },
 };

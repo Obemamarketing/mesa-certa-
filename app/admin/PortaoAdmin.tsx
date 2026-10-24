@@ -8,7 +8,7 @@ import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
-import { conferirDeNovo, entrar, sair, useAcesso } from "@/lib/auth";
+import { confirmarCodigo, conferirDeNovo, entrar, sair, useAcesso } from "@/lib/auth";
 
 export default function PortaoAdmin({ children }: { children: React.ReactNode }) {
   const acesso = useAcesso();
@@ -37,6 +37,8 @@ export default function PortaoAdmin({ children }: { children: React.ReactNode })
           )}
 
           {acesso.estado === "fora" && <FormularioDeEntrada />}
+
+          {acesso.estado === "codigo" && <FormularioDoCodigo email={acesso.email} fatorId={acesso.fatorId} />}
 
           {acesso.estado === "sem-permissao" && (
             <Recado
@@ -144,6 +146,62 @@ function FormularioDeEntrada() {
 
       <p className="text-[12.5px] text-center leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
         Esqueceu a senha? Fale com o suporte da {reservaBrand.nome}.
+      </p>
+    </form>
+  );
+}
+
+// Segunda etapa: o código de 6 números do app autenticador.
+function FormularioDoCodigo({ email, fatorId }: { email: string; fatorId: string }) {
+  const [codigo, setCodigo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function aoEnviar(e: FormEvent) {
+    e.preventDefault();
+    if (enviando || codigo.length !== 6) return;
+    setEnviando(true);
+    setErro(null);
+    const r = await confirmarCodigo(fatorId, codigo);
+    if (r.erro) {
+      setErro(r.erro);
+      setCodigo("");
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={aoEnviar} className="flex flex-col gap-4" noValidate>
+      <div>
+        <p className="font-display text-xl leading-snug" style={{ color: "var(--color-dark)" }}>Digite o código do app</p>
+        <p className="text-sm mt-1.5 leading-relaxed break-words" style={{ color: "var(--color-text-muted)" }}>
+          Abra o app autenticador no seu celular e digite o código de 6 números do {email}.
+        </p>
+      </div>
+      <input
+        id="login-codigo"
+        value={codigo}
+        onChange={(e) => { setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6)); setErro(null); }}
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoFocus
+        placeholder="000000"
+        aria-label="Código de 6 números"
+        className="border px-4 py-3.5 text-[24px] tracking-[0.35em] text-center font-semibold outline-none tabular-nums"
+        style={{ borderColor: erro ? "var(--color-error)" : "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-bg)", color: "var(--color-dark)" }}
+      />
+      {erro && <p role="alert" className="text-[13.5px] font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
+      <button
+        type="submit"
+        disabled={enviando || codigo.length !== 6}
+        className="py-3.5 text-[15px] font-semibold text-white disabled:opacity-45"
+        style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+      >
+        {enviando ? "Conferindo…" : "Entrar"}
+      </button>
+      <BotaoSair rotulo="Usar outra conta" />
+      <p className="text-[12.5px] text-center leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+        Perdeu o celular? Fale com o suporte da {reservaBrand.nome} para liberar o acesso.
       </p>
     </form>
   );

@@ -15,6 +15,9 @@ ar a cada poucos meses.
   navegador e qualquer um consegue ver) não lê nem altera as tabelas. O site do
   cliente só usa funções do banco que nunca devolvem telefone nem e-mail:
   `mesas_ocupadas`, `reservar`, `consultar_reservas`, `cancelar_minha_reserva`.
+- **Login em duas etapas no painel** (senha + código do app autenticador),
+  ativado por cada pessoa em Configurações > Acesso. A regra fica no banco:
+  quem ativou e entrou só com a senha não é tratado como administrador.
 - **Cancelar pelo site pede os 4 últimos dígitos do telefone**; 5 erros travam.
 - **Freio contra abuso na reserva** (`limites_reserva`): mesas por reserva,
   mesas por telefone e mesas por 10 minutos. Ajuste ao tamanho do salão:
@@ -77,8 +80,23 @@ ar a cada poucos meses.
 - Suspeita de chave `service_role` vazada: gerar uma nova em Settings > API e
   trocar na Vercel.
 
+## Chaves do Supabase
+
+- A chave **pública** (anon ou `sb_publishable_…`) vai dentro do site de
+  propósito; quem protege os dados é o RLS. A chave **secreta** (service_role
+  ou `sb_secret_…`) só existe na Vercel.
+- Prefira o formato novo (`sb_publishable_…` / `sb_secret_…`): cada chave
+  pode ser revogada sozinha se vazar. Troca: Settings > API Keys > criar as
+  duas; na Vercel, pôr a publishable em `NEXT_PUBLIC_SUPABASE_ANON_KEY` e a
+  secret em `SUPABASE_SERVICE_ROLE_KEY`; publicar de novo, testar o site e o
+  painel e só então desativar as chaves antigas (legacy).
+
+## Perdeu o celular do login em duas etapas
+
+Authentication > Users > (a pessoa) > apagar o fator de MFA. Ela entra só com
+a senha e ativa de novo com o celular novo.
+
 ## O que ainda falta (próximos passos)
 
 - Captcha invisível (Cloudflare Turnstile) na reserva e na consulta: é o que
   barra robô de verdade; o freio só diminui o estrago.
-- Login em duas etapas no painel (senha + código no celular).

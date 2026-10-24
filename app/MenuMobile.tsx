@@ -150,6 +150,11 @@ export default function MenuMobile({
           <p className="text-[13px] mt-0.5" style={{ color: "var(--color-text-muted)" }}>
             Reservas às {HORARIO_FIXO.replace(":", "h")}
           </p>
+          <p className="text-[13px] mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
+            <Link href="/privacidade" onClick={aoFechar} className="underline underline-offset-4" style={{ color: "var(--color-dark)" }}>Privacidade</Link>
+            <Link href="/termos" onClick={aoFechar} className="underline underline-offset-4" style={{ color: "var(--color-dark)" }}>Termos de uso</Link>
+            <Link href="/meus-dados" onClick={aoFechar} className="underline underline-offset-4" style={{ color: "var(--color-dark)" }}>Meus dados</Link>
+          </p>
         </div>
       </nav>
     </div>

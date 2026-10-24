@@ -2,13 +2,14 @@ import { reservaBrand } from "@/lib/reservaBrand";
 import LembretesWhatsapp from "./LembretesWhatsapp";
 import CopiaDosDados from "./CopiaDosDados";
 import Acesso from "./Acesso";
+import PedidosDeDados from "./PedidosDeDados";
 
 export default function ConfiguracoesPage() {
   return (
     <div className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-10 py-7 flex flex-col gap-6 max-w-xl">
       <div>
         <h1 className="font-display text-[40px] leading-tight">Configurações</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Dados do estabelecimento, cópia dos dados e acesso.</p>
+        <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>Dados do estabelecimento, pedidos sobre dados, cópia dos dados e acesso.</p>
       </div>
 
       <div className="border p-5" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
@@ -18,6 +19,8 @@ export default function ConfiguracoesPage() {
           <div className="flex justify-between"><span style={{ color: "var(--color-text-muted)" }}>Funcionamento</span><span className="font-medium">{reservaBrand.diasFuncionamento}</span></div>
         </div>
       </div>
+
+      <PedidosDeDados />
 
       <CopiaDosDados />
 

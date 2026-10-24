@@ -139,6 +139,8 @@ export function clientesParaPlanilha(reservas: Reserva[], hojeIso: string): Clie
   const porTelefone = new Map<string, Reserva[]>();
   for (const r of reservas) {
     const chave = chaveDoTelefone(r.telefone);
+    // dados apagados a pedido do cliente ou pelo prazo de guarda
+    if (!chave) continue;
     const lista = porTelefone.get(chave);
     if (lista) lista.push(r);
     else porTelefone.set(chave, [r]);

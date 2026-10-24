@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { reservaBrand } from "@/lib/reservaBrand";
 import { bancoProtegido, useAcesso } from "@/lib/auth";
 import SairDoPainel from "../SairDoPainel";
+import DuasEtapas from "./DuasEtapas";
 
 export default function Acesso() {
   const acesso = useAcesso();
@@ -40,6 +41,8 @@ export default function Acesso() {
         </div>
         <SairDoPainel />
       </div>
+
+      <DuasEtapas />
 
       <div className="mt-4 pt-4 flex flex-col gap-2 text-xs leading-relaxed" style={{ borderTop: "1px solid var(--color-border)", color: "var(--color-text-muted)" }}>
         {protegido === true && (

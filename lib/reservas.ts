@@ -576,6 +576,8 @@ export function listarClientes(reservas: Reserva[]): Cliente[] {
   const mapa = new Map<string, Cliente>();
   for (const r of reservas) {
     const chave = chaveDoTelefone(r.telefone);
+    // dados apagados a pedido do cliente ou pelo prazo de guarda
+    if (!chave) continue;
     const existente = mapa.get(chave);
     if (existente) {
       existente.totalReservas += 1;

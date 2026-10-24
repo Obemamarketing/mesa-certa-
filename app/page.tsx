@@ -29,7 +29,10 @@ import {
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
-import { LIMITES, aniversarioValido, emailValido, mascaraAniversario, telefoneValido } from "@/lib/validacao";
+import { LIMITES, aniversarioValido, mascaraAniversario, telefoneValido } from "@/lib/validacao";
+import { horaLimiteDaTolerancia } from "@/lib/regras";
+import Campo from "./Campo";
+import RodapeLegal from "./RodapeLegal";
 import { useAgora } from "@/lib/relogio";
 import StepIndicator from "./StepIndicator";
 import EscolhaMesaDesktop from "./EscolhaMesaDesktop";
@@ -92,7 +95,6 @@ export default function ReservasPage() {
   const [mesasNumeros, setMesasNumeros] = useState<string[]>([]);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [email, setEmail] = useState("");
   const [aniversario, setAniversario] = useState("");
   const [observacao, setObservacao] = useState("");
   // uma reserva por mesa: um grupo de 7 em duas mesas gera duas reservas
@@ -115,13 +117,15 @@ export default function ReservasPage() {
   // começou a digitar — campo vazio não ganha bronca.
   const nomeOk = nome.trim().length >= 2;
   const telefoneOk = telefoneValido(telefone);
-  const emailOk = emailValido(email);
   // aniversário é opcional (só dia e mês); se a pessoa começou a preencher, tem que terminar certo
   const aniversarioOk = aniversarioValido(aniversario);
-  const dadosOk = nomeOk && telefoneOk && emailOk && aniversarioOk;
+  const dadosOk = nomeOk && telefoneOk && aniversarioOk;
   const avisoTelefone = telefone.trim() && !telefoneOk ? "Confira o número: DDD + telefone, por exemplo (41) 99999-9999." : null;
-  const avisoEmail = email.trim() && !emailOk ? "Esse e-mail parece incompleto." : null;
   const avisoAniversario = !aniversario || aniversarioOk ? null : aniversario.length < 5 ? "Complete com dia e mês: dd/mm." : "Essa data não existe. Use dia e mês, por exemplo 12/03.";
+
+  const dicaAniversario = "Opcional. Só para lembrarmos da data se você vier perto dela.";
+  const dicaObservacao = "Opcional. Se contar uma alergia ou necessidade de acessibilidade, usamos só para preparar sua visita.";
+  const horaLimite = horaLimiteDaTolerancia(horario).replace(":", "h");
 
   // Escolhe ou desmarca. Com o grupo já acomodado não entra mesa nova: ninguém
   // reserva mesa a mais do que precisa. E só entra mesa livre NESSA data — o
@@ -154,7 +158,6 @@ export default function ReservasPage() {
       mesas: situacao.partes,
       nome: nome.trim(),
       telefone: telefone.trim(),
-      email: email.trim() || undefined,
       aniversario: aniversario.trim() || undefined,
       observacao: observacao.trim() || undefined,
     });
@@ -197,7 +200,6 @@ export default function ReservasPage() {
     setMesasNumeros([]);
     setNome("");
     setTelefone("");
-    setEmail("");
     setAniversario("");
     setObservacao("");
     setReservasFeitas([]);
@@ -259,7 +261,7 @@ export default function ReservasPage() {
         {/* ===== MOBILE — inalterado ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
           <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
-            <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+            <Link href="/" aria-label={`${reservaBrand.restauranteAtual} — início`}><Image src="/logo-zeplin.jpg" alt="" width={44} height={44} className="rounded-full" /></Link>
             <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
               Consultar reserva
             </Link>
@@ -296,7 +298,7 @@ export default function ReservasPage() {
         <div className="hidden lg:flex flex-col flex-1">
           <header className="flex items-center justify-between px-10 py-5 border-b" style={{ borderColor: "var(--color-border)" }}>
             <Link href="/" className="flex items-center gap-3">
-              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={46} height={46} className="rounded-full" />
+              <Image src="/logo-zeplin.jpg" alt="" width={46} height={46} className="rounded-full" />
               <span className="font-display text-[21px] leading-none" style={{ color: "var(--color-dark)" }}>{reservaBrand.restauranteAtual}</span>
             </Link>
             <Link href="/consulta" className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: "var(--color-primary)" }}>
@@ -397,7 +399,7 @@ export default function ReservasPage() {
         {/* ===== MOBILE — inalterado ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
           <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
-            <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+            <Link href="/" aria-label={`${reservaBrand.restauranteAtual} — início`}><Image src="/logo-zeplin.jpg" alt="" width={44} height={44} className="rounded-full" /></Link>
             <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
               Consultar reserva
             </Link>
@@ -413,18 +415,15 @@ export default function ReservasPage() {
 
               <div className="flex flex-col gap-3">
                 <Campo label="Nome completo">
-                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
+                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
                 <Campo label="WhatsApp" aviso={avisoTelefone}>
-                  <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
+                  <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" required inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
-                <Campo label="E-mail (opcional)" aviso={avisoEmail}>
-                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" maxLength={LIMITES.email} autoComplete="email" className="w-full outline-none text-sm bg-transparent" />
+                <Campo label="Aniversário — dia e mês (opcional)" aviso={avisoAniversario} dica={dicaAniversario}>
+                  <input value={aniversario} onChange={(e) => setAniversario(mascaraAniversario(e.target.value))} placeholder="dd/mm" inputMode="numeric" maxLength={LIMITES.aniversario} autoComplete="off" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
-                <Campo label="Aniversário — dia e mês (opcional)" aviso={avisoAniversario}>
-                  <input value={aniversario} onChange={(e) => setAniversario(mascaraAniversario(e.target.value))} placeholder="dd/mm" inputMode="numeric" maxLength={LIMITES.aniversario} autoComplete="off" aria-label="Aniversário, dia e mês" className="w-full outline-none text-sm bg-transparent" />
-                </Campo>
-                <Campo label="Observação (opcional)">
+                <Campo label="Observação (opcional)" dica={dicaObservacao}>
                   <textarea
                     value={observacao}
                     onChange={(e) => setObservacao(e.target.value)}
@@ -444,6 +443,7 @@ export default function ReservasPage() {
               >
                 Revisar reserva
               </button>
+              <AvisoDados />
             </div>
           </div>
         </div>
@@ -452,7 +452,7 @@ export default function ReservasPage() {
         <div className="hidden lg:flex flex-col flex-1">
           <header className="flex items-center justify-between px-10 py-5 border-b" style={{ borderColor: "var(--color-border)" }}>
             <Link href="/" className="flex items-center gap-3">
-              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={46} height={46} className="rounded-full" />
+              <Image src="/logo-zeplin.jpg" alt="" width={46} height={46} className="rounded-full" />
               <span className="font-display text-[21px] leading-none" style={{ color: "var(--color-dark)" }}>{reservaBrand.restauranteAtual}</span>
             </Link>
             <Link href="/consulta" className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: "var(--color-primary)" }}>
@@ -481,21 +481,18 @@ export default function ReservasPage() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <CampoDesktop label="Nome completo">
-                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
-                    </CampoDesktop>
-                    <div className="grid grid-cols-[1fr_1fr_210px] gap-4 items-start">
-                      <CampoDesktop label="WhatsApp" aviso={avisoTelefone}>
-                        <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
-                      </CampoDesktop>
-                      <CampoDesktop label="E-mail (opcional)" aviso={avisoEmail}>
-                        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" inputMode="email" maxLength={LIMITES.email} autoComplete="email" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
-                      </CampoDesktop>
-                      <CampoDesktop label="Aniversário (opcional)" aviso={avisoAniversario}>
-                        <input value={aniversario} onChange={(e) => setAniversario(mascaraAniversario(e.target.value))} placeholder="dd/mm" inputMode="numeric" maxLength={LIMITES.aniversario} autoComplete="off" aria-label="Aniversário, dia e mês" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
-                      </CampoDesktop>
+                    <Campo grande label="Nome completo">
+                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                    </Campo>
+                    <div className="grid grid-cols-2 gap-4 items-start">
+                      <Campo grande label="WhatsApp" aviso={avisoTelefone}>
+                        <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" required inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      </Campo>
+                      <Campo grande label="Aniversário — dia e mês (opcional)" aviso={avisoAniversario} dica={dicaAniversario}>
+                        <input value={aniversario} onChange={(e) => setAniversario(mascaraAniversario(e.target.value))} placeholder="dd/mm" inputMode="numeric" maxLength={LIMITES.aniversario} autoComplete="off" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                      </Campo>
                     </div>
-                    <CampoDesktop label="Observação (opcional)">
+                    <Campo grande label="Observação (opcional)" dica={dicaObservacao}>
                       <textarea
                         value={observacao}
                         onChange={(e) => setObservacao(e.target.value)}
@@ -505,7 +502,7 @@ export default function ReservasPage() {
                         className="w-full outline-none text-[15px] bg-transparent resize-none"
                         style={{ color: "var(--color-dark)" }}
                       />
-                    </CampoDesktop>
+                    </Campo>
                   </div>
 
                   <button
@@ -517,6 +514,7 @@ export default function ReservasPage() {
                     Revisar reserva
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                   </button>
+                  <AvisoDados />
                 </div>
 
                 {/* DIREITA — resumo da reserva */}
@@ -561,7 +559,7 @@ export default function ReservasPage() {
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
       {/* HEADER */}
       <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
-        <Link href="/"><Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={44} height={44} className="rounded-full" /></Link>
+        <Link href="/" aria-label={`${reservaBrand.restauranteAtual} — início`}><Image src="/logo-zeplin.jpg" alt="" width={44} height={44} className="rounded-full" /></Link>
         <Link href="/consulta" className="text-sm font-medium" style={{ color: "var(--color-primary)" }}>
           Consultar reserva
         </Link>
@@ -584,12 +582,12 @@ export default function ReservasPage() {
 
             <div className="flex flex-col gap-3">
               <Campo label="Nome completo">
-                <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
+                <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
               </Campo>
               <Campo label="WhatsApp" aviso={avisoTelefone}>
-                <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
+                <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" required inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
               </Campo>
-              <Campo label="Observação (opcional)">
+              <Campo label="Observação (opcional)" dica={dicaObservacao}>
                 <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: pode ser na área externa" rows={2} maxLength={LIMITES.observacao} className="w-full outline-none text-sm bg-transparent resize-none" />
               </Campo>
             </div>
@@ -607,6 +605,7 @@ export default function ReservasPage() {
             <p className="text-xs text-center leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
               Entrar na fila não garante a mesa. Você recebe um link para acompanhar sua posição.
             </p>
+            <Consentimento acao="entrar na fila" />
           </div>
         )}
 
@@ -645,9 +644,8 @@ export default function ReservasPage() {
               Editar reserva
             </button>
 
-            {erro && <p className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
+            {erro && <p role="alert" className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
 
-            <p className="text-xs text-center" style={{ color: "var(--color-text-muted)" }}>Estou de acordo com as informações da reserva.</p>
 
             <button
               onClick={confirmar}
@@ -657,6 +655,7 @@ export default function ReservasPage() {
             >
               {enviando ? "Confirmando…" : "Confirmar reserva"}
             </button>
+            <Consentimento acao="confirmar" />
           </div>
         )}
 
@@ -667,7 +666,10 @@ export default function ReservasPage() {
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
             </div>
             <h1 className="font-display text-2xl">Reserva confirmada!</h1>
-            <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>{reservasFeitas.length > 1 ? "Suas mesas estão garantidas" : "Sua mesa está garantida"} no {reservaBrand.restauranteAtual}.</p>
+            <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+              {reservasFeitas.length > 1 ? "Suas mesas estão reservadas" : "Sua mesa está reservada"} no {reservaBrand.restauranteAtual}. Chegue até as {horaLimite}: depois
+              da tolerância, a mesa pode ser liberada.
+            </p>
 
             <div className="w-full border p-5 flex flex-col gap-2.5 text-left" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
               <Linha label="Data" valor={rotuloDaReserva(reservasFeitas[0])} />
@@ -781,23 +783,6 @@ const ICONE_GRUPO = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="8.5" cy="8" r="3" /><circle cx="16.5" cy="9.5" r="2.3" /><path d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M14.5 15c2.3.2 4 2 4 4.3" /></svg>
 );
 
-function CampoDesktop({ label, aviso, children }: { label: string; aviso?: string | null; children: React.ReactNode }) {
-  return (
-    <div>
-      <div
-        className="border px-5 py-3.5 flex flex-col gap-1"
-        style={{ borderColor: aviso ? "var(--color-error)" : "var(--color-border)", background: "var(--color-surface)", borderRadius: "14px" }}
-      >
-        <label className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>{label}</label>
-        {children}
-      </div>
-      {aviso && (
-        <p role="alert" className="text-[12.5px] font-medium mt-1.5 px-1" style={{ color: "var(--color-error)" }}>{aviso}</p>
-      )}
-    </div>
-  );
-}
-
 function LinhaResumoDesktop({ icon, children, ultima = false }: { icon: React.ReactNode; children: React.ReactNode; ultima?: boolean }) {
   return (
     <div
@@ -833,7 +818,7 @@ function CampoReserva({
 }) {
   return (
     <div
-      className={`relative flex items-center flex-1 min-w-0 ${compacto ? "gap-2 px-3.5 py-4" : "gap-3 px-4 py-3 sm:px-5 sm:py-2.5"}`}
+      className={`campo-foco relative flex items-center flex-1 min-w-0 ${compacto ? "gap-2 px-3.5 py-4" : "gap-3 px-4 py-3 sm:px-5 sm:py-2.5"}`}
       style={divisor ? { borderLeft: "1px solid var(--color-border)" } : undefined}
     >
       <span className={`shrink-0 ${compacto ? "scale-[0.94]" : ""}`} style={{ color: "var(--color-primary)" }}>{icon}</span>
@@ -1089,7 +1074,7 @@ function TelaInicio({
           aoReservar={irParaReserva}
         />
         <section className="relative w-full h-[640px] overflow-hidden">
-          <Image src="/hero-zeplin.webp" alt={`Interior do ${reservaBrand.restauranteAtual}`} fill priority className="object-cover" />
+          <Image src="/hero-zeplin.webp" alt={`Salão do ${reservaBrand.restauranteAtual}`} fill priority className="object-cover" />
           <div
             className="absolute inset-0"
             style={{
@@ -1098,9 +1083,9 @@ function TelaInicio({
             }}
           />
 
-          <div className="relative z-10 flex items-center justify-between px-5 pt-5">
+          <div className="foco-claro relative z-10 flex items-center justify-between px-5 pt-5">
             <div className="flex items-center gap-2.5">
-              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={38} height={38} className="rounded-full" />
+              <Image src="/logo-zeplin.jpg" alt="" width={38} height={38} className="rounded-full" />
               <span className="font-display text-[22px] text-white leading-none">{reservaBrand.restauranteAtual}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -1163,6 +1148,9 @@ function TelaInicio({
             </div>
           </div>
         </div>
+        <div className="mt-10">
+          <RodapeLegal />
+        </div>
       </div>
 
       {/* ===================== DESKTOP (lg+) — composição dividida ===================== */}
@@ -1172,16 +1160,14 @@ function TelaInicio({
           {/* HEADER: logo com presença + navegação + consultar reserva (discreto) */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 shrink-0">
-              <Image src="/logo-zeplin.jpg" alt={reservaBrand.restauranteAtual} width={52} height={52} className="rounded-full shrink-0" />
+              <Image src="/logo-zeplin.jpg" alt="" width={52} height={52} className="rounded-full shrink-0" />
               <span className="font-display text-[22px] leading-none" style={{ color: "var(--color-dark)" }}>
                 {reservaBrand.restauranteAtual}
               </span>
             </div>
-            <nav className="flex items-center gap-3 text-[12.5px] shrink-0" style={{ color: "var(--color-text-muted)" }}>
-              <span className="font-medium pb-1" style={{ color: "var(--color-primary)", borderBottom: "1px solid var(--color-primary)" }}>Início</span>
+            <nav aria-label="Principal" className="flex items-center gap-4 text-[13px] shrink-0" style={{ color: "var(--color-text-muted)" }}>
+              <span aria-current="page" className="font-medium pb-1" style={{ color: "var(--color-primary)", borderBottom: "1px solid var(--color-primary)" }}>Início</span>
               <Link href="/cardapio" className="pb-1 hover:underline underline-offset-4">Cardápio</Link>
-              <span>Reservas</span>
-              <span>O {reservaBrand.restauranteAtual}</span>
             </nav>
             <Link
               href="/consulta"
@@ -1199,7 +1185,7 @@ function TelaInicio({
               Restaurante &amp; Bar
             </span>
             <h1 className="font-display text-[62px] xl:text-[68px] leading-[1.05]" style={{ color: "var(--color-dark)" }}>
-              Boa comida,<br />boas<br /><span style={{ color: "var(--color-secondary)" }}>companhias.</span>
+              Boa comida,<br />boas<br /><span style={{ color: "var(--color-secondary-dark)" }}>companhias.</span>
             </h1>
             <p className="text-[17.5px]" style={{ color: "var(--color-text-muted)" }}>
               Reserve sua mesa e viva a experiência {reservaBrand.restauranteAtual}.
@@ -1255,27 +1241,13 @@ function TelaInicio({
 
         {/* DIREITA — fotografia, nítida, sem filtro, com grande presença */}
         <div className="relative w-1/2">
-          <Image src="/hero-zeplin.webp" alt={reservaBrand.restauranteAtual} fill priority className="object-cover object-[center_40%]" />
+          <Image src="/hero-zeplin.webp" alt={`Salão do ${reservaBrand.restauranteAtual}`} fill priority className="object-cover object-[center_40%]" />
         </div>
       </div>
-    </main>
-  );
-}
-
-function Campo({ label, aviso, children }: { label: string; aviso?: string | null; children: React.ReactNode }) {
-  return (
-    <div>
-      <div
-        className="border px-4 py-3 flex flex-col gap-1"
-        style={{ borderColor: aviso ? "var(--color-error)" : "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}
-      >
-        <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>{label}</label>
-        {children}
+      <div className="hidden lg:block">
+        <RodapeLegal />
       </div>
-      {aviso && (
-        <p role="alert" className="text-xs font-medium mt-1.5 px-1" style={{ color: "var(--color-error)" }}>{aviso}</p>
-      )}
-    </div>
+    </main>
   );
 }
 
@@ -1285,5 +1257,30 @@ function Linha({ label, valor }: { label: string; valor: string }) {
       <span style={{ color: "var(--color-text-muted)" }}>{label}</span>
       <span className="font-semibold text-right">{valor}</span>
     </div>
+  );
+}
+
+// Aviso na hora de pedir os dados: para que servem (LGPD, art. 9º).
+function AvisoDados() {
+  return (
+    <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+      Usamos seu nome e WhatsApp só para cuidar da sua reserva. Nada de propaganda.{" "}
+      <Link href="/privacidade" className="font-semibold underline underline-offset-4" style={{ color: "var(--color-primary)" }}>
+        Política de privacidade
+      </Link>
+    </p>
+  );
+}
+
+// Texto embaixo do botão final: ao confirmar, a pessoa aceita os termos.
+function Consentimento({ acao }: { acao: string }) {
+  const link = "font-semibold underline underline-offset-4";
+  return (
+    <p className="text-xs text-center leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+      Ao {acao}, você aceita os{" "}
+      <Link href="/termos" className={link} style={{ color: "var(--color-primary)" }}>Termos de uso</Link> e a{" "}
+      <Link href="/cancelamento" className={link} style={{ color: "var(--color-primary)" }}>Política de cancelamento</Link>. Seus dados seguem a{" "}
+      <Link href="/privacidade" className={link} style={{ color: "var(--color-primary)" }}>Política de privacidade</Link>.
+    </p>
   );
 }

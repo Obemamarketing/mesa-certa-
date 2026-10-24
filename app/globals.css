@@ -3,7 +3,7 @@
 /* Cores base vêm de lib/reservaBrand.ts, injetadas pelo layout.tsx. Pra
    atender outro restaurante, mexe só em lib/reservaBrand.ts.
 
-   Paleta Zéplin: vinho = ação/navegação, oliva = positivo/livre,
+   Paleta do restaurante: vinho = ação/navegação, oliva = positivo/livre,
    mostarda = atenção/pendente, creme domina o conteúdo. */
 :root {
   --color-card: var(--color-surface);
@@ -24,6 +24,9 @@
   --color-focus: color-mix(in srgb, var(--color-primary) 20%, white);
 
   --color-sand: color-mix(in srgb, var(--color-dark) 10%, white);
+
+  /* borda das caixas de formulário: contraste 3:1 com o fundo (acessibilidade) */
+  --color-border-field: #968A7F;
 
   --font-display: var(--font-serif-display);
   --font-body: var(--font-inter);
@@ -112,4 +115,153 @@ h1, h2, h3, .font-display {
    títulos mantêm a serif editorial da marca (regra h1/h2/h3/.font-display acima). */
 .admin-root {
   font-family: var(--font-admin);
+}
+
+/* ------------------------------------------------------------ acessibilidade */
+
+/* Foco visível para quem navega pelo teclado (Tab). Fora de qualquer camada do
+   Tailwind de propósito: vale mesmo onde o elemento tem "outline-none". */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Em cima da foto escura, o contorno fica branco. */
+.foco-claro :focus-visible {
+  outline-color: #fff;
+}
+
+/* Caixas de formulário: o contorno vai na caixa inteira, não no texto. Vale
+   também para as listas escondidas por cima do campo (data, pessoas). */
+.campo-foco:has(:focus-visible) {
+  box-shadow: 0 0 0 3px var(--color-primary);
+}
+.campo-foco :is(input, textarea, select):focus-visible {
+  outline: none;
+}
+
+
+/* ------------------------------------------------------- páginas de política */
+
+.texto-legal {
+  color: var(--color-dark);
+  font-size: 15.5px;
+  line-height: 1.65;
+}
+.texto-legal .resumo {
+  margin-top: 14px;
+  font-size: 17px;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+.texto-legal .atualizado {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.texto-legal h2 {
+  margin-top: 36px;
+  margin-bottom: 10px;
+  font-size: 24px;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.texto-legal p,
+.texto-legal ul {
+  margin-top: 10px;
+  max-width: 68ch;
+}
+.texto-legal ul {
+  padding-left: 20px;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.texto-legal a {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.texto-legal .tabela {
+  margin-top: 14px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.texto-legal table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.texto-legal th,
+.texto-legal td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border);
+}
+.texto-legal thead th {
+  border-top: none;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* formulário da página "Meus dados" */
+.formulario-legal {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+  color: var(--color-text-muted);
+}
+.formulario-legal fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.formulario-legal legend {
+  font-weight: 600;
+  color: var(--color-dark);
+  margin-bottom: 10px;
+}
+.opcao-pedido {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-field);
+  border-radius: 12px;
+  background: var(--color-surface);
+  cursor: pointer;
+  line-height: 1.45;
+}
+.opcao-pedido[data-marcada] {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.opcao-pedido input {
+  margin-top: 4px;
+  accent-color: var(--color-primary);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.caixa-ok {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 560px;
 }

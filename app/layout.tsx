@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, Hanken_Grotesk } from "next/font/google";
 import { reservaBrand } from "@/lib/reservaBrand";
+import AvisoCookies from "./AvisoCookies";
 import "./globals.css";
 
 const serifDisplay = DM_Serif_Display({
@@ -42,7 +43,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <style dangerouslySetInnerHTML={{ __html: corBase }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <AvisoCookies />
+      </body>
     </html>
   );
 }
