@@ -12,11 +12,11 @@ export const PENDENTE = "[preencher]";
 export const empresa = {
   nomeFantasia: reservaBrand.restauranteAtual,
   /** Nome que está no cartão CNPJ. */
-  razaoSocial: PENDENTE,
+  razaoSocial: "Mulambo Bar e Restaurante Ltda.",
   /** 00.000.000/0000-00 */
-  cnpj: PENDENTE,
+  cnpj: "31.239.476/0001-03",
   /** Rua, número, bairro. */
-  endereco: "Rua Amintas de Barros, 1050",
+  endereco: "Rua Amintas de Barros, 1050, Alto da Rua XV",
   /** Cidade/UF e CEP. */
   cidade: "Curitiba/PR, CEP 80045-155",
   /** E-mail que alguém do restaurante lê (também recebe assuntos de dados pessoais). */
