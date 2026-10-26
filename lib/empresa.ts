@@ -61,6 +61,6 @@ export function razaoECnpj(): string | null {
 /** Campos que ainda faltam preencher (para conferir antes de publicar). */
 export function camposPendentes(): string[] {
   return Object.entries(empresa)
-    .filter(([, v]) => v === PENDENTE)
+    .filter(([, v]) => estaPendente(v))
     .map(([k]) => k);
 }
