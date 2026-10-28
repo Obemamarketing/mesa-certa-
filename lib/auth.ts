@@ -152,6 +152,50 @@ export async function confirmarCodigo(fatorId: string, codigo: string): Promise<
   return { erro: "Não foi possível confirmar o código agora. Tente de novo." };
 }
 
+// ------------------------------------------------------- esqueci a senha
+
+// Manda o e-mail com o link de troca de senha. A resposta é a mesma exista ou
+// não a conta: a tela não pode servir para descobrir quais e-mails têm acesso.
+// O link leva para /nova-senha (que precisa estar em Authentication > URL
+// Configuration > Redirect URLs no Supabase).
+export async function pedirTrocaDeSenha(email: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${window.location.origin}/nova-senha`,
+  });
+  if (!error) return {};
+  if (error.status === 429 || /rate limit/i.test(error.message)) {
+    return { erro: "Muitos pedidos seguidos. Espere alguns minutos e tente de novo." };
+  }
+  console.error("Erro ao pedir troca de senha:", error.message);
+  return { erro: "Não foi possível enviar o e-mail agora. Verifique a conexão e tente de novo." };
+}
+
+export type ResultadoTrocaDeSenha = { erro?: string; precisaDoCodigo?: string };
+
+// Grava a senha nova (a pessoa entrou pelo link do e-mail). Se a conta tem as
+// duas etapas ligadas, o Supabase pode exigir o código do app antes: aí volta
+// "precisaDoCodigo" com o fator a confirmar, e a tela pede o código.
+export async function trocarSenha(nova: string): Promise<ResultadoTrocaDeSenha> {
+  const { error } = await supabase.auth.updateUser({ password: nova });
+  if (!error) {
+    // a senha antiga pode ter vazado: derruba o login dos outros aparelhos
+    await supabase.auth.signOut({ scope: "others" }).catch(() => {});
+    return {};
+  }
+  if (error.code === "insufficient_aal" || /aal2|assurance/i.test(error.message)) {
+    const { data } = await supabase.auth.mfa.listFactors();
+    const fator = data?.totp.find((f) => f.status === "verified");
+    if (fator) return { precisaDoCodigo: fator.id };
+  }
+  if (error.code === "same_password") return { erro: "A senha nova precisa ser diferente da antiga." };
+  if (error.code === "weak_password") return { erro: "Senha fraca. Use pelo menos 8 caracteres, misturando letras e números." };
+  if (error.status === 401 || /session|jwt|expired/i.test(error.message)) {
+    return { erro: "O link venceu ou já foi usado. Volte ao painel e peça outro." };
+  }
+  console.error("Erro ao trocar a senha:", error.message);
+  return { erro: "Não foi possível trocar a senha agora. Tente de novo." };
+}
+
 // --------------------------------------------- ativar / desativar duas etapas
 
 export type DuasEtapas = { ativadas: boolean; fatorId: string | null };

@@ -51,7 +51,7 @@ export default function AvisoCookies() {
   // no servidor, "já viu": o aviso só aparece depois que a página abre no navegador
   const visto = useSyncExternalStore(assinar, () => escondidoNestaVisita || jaViu(), () => true);
   const aviso = useRef<HTMLDivElement>(null);
-  const mostrar = !visto && !caminho?.startsWith("/admin");
+  const mostrar = !visto && !caminho?.startsWith("/admin") && caminho !== "/nova-senha";
 
   useEffect(() => {
     if (!mostrar) return;

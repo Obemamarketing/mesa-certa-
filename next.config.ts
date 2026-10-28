@@ -37,6 +37,8 @@ const nextConfig: NextConfig = {
       // o painel não aparece no Google nem em outros buscadores
       { source: "/admin/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/admin", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // a página de criar senha nova (link do e-mail) também não aparece em buscador
+      { source: "/nova-senha", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };

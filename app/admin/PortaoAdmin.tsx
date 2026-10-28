@@ -8,7 +8,7 @@ import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
-import { confirmarCodigo, conferirDeNovo, entrar, sair, useAcesso } from "@/lib/auth";
+import { confirmarCodigo, conferirDeNovo, entrar, pedirTrocaDeSenha, sair, useAcesso } from "@/lib/auth";
 
 export default function PortaoAdmin({ children }: { children: React.ReactNode }) {
   const acesso = useAcesso();
@@ -36,7 +36,7 @@ export default function PortaoAdmin({ children }: { children: React.ReactNode })
             <p className="text-sm text-center py-6" style={{ color: "var(--color-text-muted)" }} aria-live="polite">Conferindo o acesso…</p>
           )}
 
-          {acesso.estado === "fora" && <FormularioDeEntrada />}
+          {acesso.estado === "fora" && <Entrada />}
 
           {acesso.estado === "codigo" && <FormularioDoCodigo email={acesso.email} fatorId={acesso.fatorId} />}
 
@@ -65,8 +65,18 @@ export default function PortaoAdmin({ children }: { children: React.ReactNode })
   );
 }
 
-function FormularioDeEntrada() {
+// Entrar ou pedir o link de troca de senha (o e-mail digitado passa de um para o outro).
+function Entrada() {
+  const [esqueci, setEsqueci] = useState(false);
   const [email, setEmail] = useState("");
+  return esqueci ? (
+    <FormularioEsqueciASenha email={email} setEmail={setEmail} aoVoltar={() => setEsqueci(false)} />
+  ) : (
+    <FormularioDeEntrada email={email} setEmail={setEmail} aoEsquecer={() => setEsqueci(true)} />
+  );
+}
+
+function FormularioDeEntrada({ email, setEmail, aoEsquecer }: { email: string; setEmail: (v: string) => void; aoEsquecer: () => void }) {
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -144,9 +154,89 @@ function FormularioDeEntrada() {
         {enviando ? "Entrando…" : "Entrar"}
       </button>
 
-      <p className="text-[12.5px] text-center leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-        Esqueceu a senha? Fale com o suporte da {reservaBrand.nome}.
-      </p>
+      <button type="button" onClick={aoEsquecer} className="text-[13.5px] font-semibold self-center underline underline-offset-4" style={{ color: "var(--color-primary)" }}>
+        Esqueci minha senha
+      </button>
+    </form>
+  );
+}
+
+// Pede o e-mail e manda o link de troca. A resposta é sempre a mesma, exista ou
+// não a conta.
+function FormularioEsqueciASenha({ email, setEmail, aoVoltar }: { email: string; setEmail: (v: string) => void; aoVoltar: () => void }) {
+  const [enviando, setEnviando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function aoEnviar(e: FormEvent) {
+    e.preventDefault();
+    if (enviando || !email.trim()) return;
+    setEnviando(true);
+    setErro(null);
+    const r = await pedirTrocaDeSenha(email);
+    setEnviando(false);
+    if (r.erro) setErro(r.erro);
+    else setEnviado(true);
+  }
+
+  if (enviado) {
+    return (
+      <div className="flex flex-col gap-4" role="status">
+        <div>
+          <p className="font-display text-xl leading-snug" style={{ color: "var(--color-dark)" }}>Confira o seu e-mail</p>
+          <p className="text-sm mt-2 leading-relaxed break-words" style={{ color: "var(--color-text-muted)" }}>
+            Se o {email.trim()} tiver acesso ao painel, enviamos um link para criar uma senha nova. Ele chega em alguns minutos (veja também o
+            spam) e vale por 1 hora.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={aoVoltar}
+          className="py-3 text-sm font-semibold border"
+          style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)", borderRadius: "var(--radius-sm)" }}
+        >
+          Voltar para o login
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={aoEnviar} className="flex flex-col gap-4" noValidate>
+      <div>
+        <p className="font-display text-xl leading-snug" style={{ color: "var(--color-dark)" }}>Trocar a senha</p>
+        <p className="text-sm mt-1.5 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+          Digite o e-mail do painel. Vamos mandar um link para você criar uma senha nova.
+        </p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="esqueci-email" className="text-[13px] font-semibold" style={{ color: "var(--color-text-muted)" }}>E-mail</label>
+        <input
+          id="esqueci-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+          inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
+          className="border px-3.5 py-3 text-[15px] outline-none"
+          style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--color-bg)", color: "var(--color-dark)" }}
+        />
+      </div>
+      {erro && <p role="alert" className="text-[13.5px] font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
+      <button
+        type="submit"
+        disabled={enviando || !email.trim()}
+        className="py-3.5 text-[15px] font-semibold text-white disabled:opacity-45"
+        style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
+      >
+        {enviando ? "Enviando…" : "Enviar link"}
+      </button>
+      <button type="button" onClick={aoVoltar} className="text-[13.5px] font-semibold self-center" style={{ color: "var(--color-text-muted)" }}>
+        ← Voltar para o login
+      </button>
     </form>
   );
 }
