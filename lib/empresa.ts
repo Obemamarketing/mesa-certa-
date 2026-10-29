@@ -26,7 +26,7 @@ export const empresa = {
   /** Quem responde pelos dados pessoais no restaurante (pode ser o dono). */
   responsavelDados: "Maninho",
   /** Data da última mudança nas políticas. Atualize sempre que mexer no texto. */
-  politicasAtualizadasEm: "24 de outubro de 2026",
+  politicasAtualizadasEm: "29 de outubro de 2026",
 } as const;
 
 // Quem faz o sistema (operador dos dados, em nome do restaurante).

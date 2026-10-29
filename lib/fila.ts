@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { dataHoje, isoDaData } from "./reservas";
+import { chamarFuncaoPublica, erroDoCaptcha } from "./rpcPublica";
 
 // ------------------------------------------------------------------ visitante
 
@@ -21,17 +22,24 @@ export type DadosDaEspera = {
   observacao?: string;
 };
 
-export async function entrarNaFila(dados: DadosDaEspera): Promise<{ codigo?: string; posicao?: number; erro?: string }> {
-  const { data, error } = await supabase.rpc("entrar_na_fila", {
-    p_data: dados.dataReserva,
-    p_horario: dados.horario,
-    p_pessoas: dados.pessoas,
-    p_nome: dados.nome,
-    p_telefone: dados.telefone,
-    p_observacao: dados.observacao ?? null,
-  });
+export async function entrarNaFila(dados: DadosDaEspera, captcha?: string | null): Promise<{ codigo?: string; posicao?: number; erro?: string; captcha?: boolean }> {
+  const { data, error } = await chamarFuncaoPublica<{ codigo: string; posicao: number }[]>(
+    "entrar_na_fila",
+    {
+      p_data: dados.dataReserva,
+      p_horario: dados.horario,
+      p_pessoas: dados.pessoas,
+      p_nome: dados.nome,
+      p_telefone: dados.telefone,
+      p_observacao: dados.observacao ?? null,
+    },
+    captcha,
+  );
   if (error) {
     const msg = error.message ?? "";
+    const doCaptcha = erroDoCaptcha(error);
+    if (doCaptcha) return { erro: doCaptcha, captcha: true };
+    if (/DADOS_INVALIDOS: nome e sobrenome/.test(msg)) return { erro: "Digite nome e sobrenome, como em um documento." };
     if (/JA_NA_FILA/.test(msg)) return { erro: "Este telefone já está na fila de espera desta data." };
     if (/RESTAURANTE_FECHADO/.test(msg)) return { erro: "O restaurante estará fechado nesta data. Escolha outro dia." };
     if (/DATA_FORA_DA_AGENDA/.test(msg)) return { erro: "Essa data não está mais disponível. Volte e escolha outra." };

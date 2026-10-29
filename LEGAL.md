@@ -29,7 +29,7 @@ jurídica antes de valerem para muitos clientes.
 | Resposta em até 15 dias | LGPD art. 19 | Painel mostra há quantos dias o pedido está aberto (fica vermelho perto do prazo) |
 | Prazo de guarda | LGPD arts. 15 e 16 | Limpeza diária automática: reservas 24 meses, fila 30 dias, pedidos 5 anos |
 | Cookies | LGPD + guia de cookies da ANPD (2022) | Site sem cookies de rastreamento; aviso informativo; política em `/privacidade#cookies` |
-| Sem rastreamento de terceiros | — | Sem Google Analytics, pixel ou fontes do Google (as fontes vêm do próprio site). O teste confirma que nenhuma página chama servidor de terceiros |
+| Sem rastreamento de terceiros | — | Sem Google Analytics, pixel ou fontes do Google (as fontes vêm do próprio site). Única exceção, quando ligado: o captcha da Cloudflare (Turnstile), que só confere se é uma pessoa e está citado na Política de privacidade |
 | Segurança | LGPD art. 46 | Banco fechado, login com duas etapas, https obrigatório (ver `SEGURANCA.md`) |
 | Dados da empresa à vista | Decreto 7.962/2013 e CDC art. 31 | Rodapé de todas as páginas do cliente |
 | Política de cancelamento e reembolso | CDC | `/cancelamento` (a reserva é gratuita) |
@@ -65,7 +65,7 @@ política: **nenhum problema**. Corrigido nesta revisão:
   com as obrigações de proteção de dados (o que pode fazer com os dados,
   segurança, aviso de incidente, devolução/exclusão ao fim do contrato). Vale
   para os 30 restaurantes.
-- **Fornecedores no exterior.** Supabase e Vercel guardam dados fora do Brasil.
+- **Fornecedores no exterior.** Supabase, Vercel e Cloudflare (captcha) tratam dados fora do Brasil.
   Aceitar os termos de proteção de dados (DPA) de cada um no painel deles e
   guardar cópia. A ANPD publicou cláusulas-padrão para transferência
   internacional (Resolução CD/ANPD nº 19/2024); o advogado diz se precisam ser

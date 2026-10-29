@@ -13,6 +13,21 @@ export function soDigitos(texto: string): string {
   return texto.replace(/\D/g, "");
 }
 
+// Quantas palavras de pelo menos 2 letras tem um nome ("Ana Lima" = 2;
+// "Ana L." = 1). Mesma conta do banco (função palavras_do_nome).
+export function palavrasDoNome(texto: string): number {
+  return texto
+    .trim()
+    .split(/\s+/)
+    .filter((p) => p.replace(/[^\p{L}]/gu, "").length >= 2).length;
+}
+
+// Nome e sobrenome: é o que a reserva pelo site exige, e é por eles que o
+// cliente acha a reserva na consulta.
+export function nomeCompleto(texto: string): boolean {
+  return palavrasDoNome(texto) >= 2;
+}
+
 // "+1 415 555 0123": número que o cliente escreveu já com o código do país
 // (qualquer um que não seja o +55) é tratado como internacional.
 function ehInternacional(texto: string): boolean {

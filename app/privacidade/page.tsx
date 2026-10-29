@@ -104,6 +104,10 @@ export default function PrivacidadePage() {
           <strong>WhatsApp (Meta)</strong> — quando o restaurante conversa com você pelo WhatsApp e, se estiver ligado, para mandar o lembrete
           automático da reserva.
         </li>
+        <li>
+          <strong>Cloudflare (Turnstile)</strong> — a verificação &quot;não sou um robô&quot; ao reservar, entrar na fila ou fazer um pedido sobre
+          dados. Ela analisa sinais técnicos do navegador e o endereço IP só para saber se é uma pessoa; não é usada para propaganda.
+        </li>
       </ul>
       <p>
         Alguns desses serviços guardam dados em servidores fora do Brasil (por exemplo, nos Estados Unidos). Essa transferência acontece para
@@ -151,11 +155,14 @@ export default function PrivacidadePage() {
       <h2 id="cookies">7. Cookies e armazenamento no navegador</h2>
       <p>
         Este site <strong>não usa cookies de propaganda nem de estatística</strong> e não tem ferramentas de rastreamento (como Google Analytics ou
-        pixel do Facebook). As fontes de letra são carregadas do próprio site, sem passar pelo Google.
+        pixel do Facebook). As fontes de letra são carregadas do próprio site, sem passar pelo Google. A única peça de fora é a verificação
+        &quot;não sou um robô&quot; da Cloudflare, que aparece só na hora de enviar uma reserva ou pedido e serve para barrar robôs.
       </p>
       <p>Usamos só o armazenamento essencial, que o site precisa para funcionar:</p>
       <ul>
         <li>a lembrança de que você já viu o aviso de cookies;</li>
+        <li>a alteração de reserva em andamento (só enquanto você altera; some quando termina);</li>
+        <li>o que a verificação &quot;não sou um robô&quot; da Cloudflare precisa para funcionar, quando ela aparece;</li>
         <li>o login da equipe do restaurante no painel (não se aplica a clientes).</li>
       </ul>
       <p>

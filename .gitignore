@@ -38,3 +38,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# testes: bibliotecas e o que os testes geram (fotos, contas sorteadas, compilados)
+testes/node_modules
+testes/**/_saida
+testes/**/_*.png
+testes/**/_contas-de-teste.json
+testes/unidade/_exp
+testes/unidade/_lemb

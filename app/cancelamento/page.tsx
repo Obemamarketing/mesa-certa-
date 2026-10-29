@@ -26,8 +26,12 @@ export default function CancelamentoPage() {
       <h2>2. Como cancelar</h2>
       <ul>
         <li>
-          Pelo site, a qualquer momento antes do horário: em <Link href="/consulta">Consultar reserva</Link>, com o nome usado e os 4 últimos
-          dígitos do WhatsApp.
+          Pelo site, a qualquer momento antes do horário: em <Link href="/consulta">Consultar reserva</Link>, com o nome e sobrenome usados e os 4
+          últimos dígitos do WhatsApp.
+        </li>
+        <li>
+          Quer só mudar o dia, o horário, a mesa ou o número de pessoas? Use &quot;Alterar reserva&quot; na mesma tela, sem custo: sua reserva
+          atual continua valendo até a nova ser confirmada.
         </li>
         <li>
           Ou pelo telefone do restaurante: <Dado valor={empresa.telefone} />.

@@ -29,7 +29,7 @@ export default function TermosPage() {
       <h2>2. Quem pode reservar</h2>
       <ul>
         <li>Pessoas com 18 anos ou mais. Quem reserva responde pelo grupo.</li>
-        <li>Os dados informados (nome e WhatsApp) precisam ser verdadeiros e seus.</li>
+        <li>Os dados informados (nome e sobrenome, e WhatsApp) precisam ser verdadeiros e seus.</li>
       </ul>
 
       <h2>3. Como funciona a reserva</h2>
@@ -49,9 +49,11 @@ export default function TermosPage() {
         </li>
         <li>Grupos maiores que uma mesa reservam mais de uma; o site soma os lugares.</li>
         <li>
-          Você pode ver ou cancelar a reserva em <Link href="/consulta">Consultar reserva</Link>, com o nome usado e os 4 últimos dígitos do
-          WhatsApp.
+          Você pode ver, alterar ou cancelar a reserva em <Link href="/consulta">Consultar reserva</Link>, com o nome e sobrenome usados e os 4
+          últimos dígitos do WhatsApp. Na alteração, a reserva antiga só é trocada quando a nova é confirmada; se a nova não der certo, a antiga
+          continua valendo.
         </li>
+        <li>Depois de reservar, você pode baixar um comprovante (uma imagem) para guardar no celular.</li>
         <li>A reserva garante a mesa. O que você consome é pago no restaurante, com os preços do cardápio da casa.</li>
       </ul>
 

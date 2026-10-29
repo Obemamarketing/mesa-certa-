@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { chamarFuncaoPublica, erroDoCaptcha } from "./rpcPublica";
 
 export type TipoDePedido = "exclusao" | "acesso" | "correcao" | "outro";
 
@@ -21,20 +22,29 @@ export function rotuloDoTipo(tipo: TipoDePedido): string {
   return TIPOS_DE_PEDIDO.find((t) => t.valor === tipo)?.rotulo ?? tipo;
 }
 
-export async function pedirSobreMeusDados(dados: {
-  tipo: TipoDePedido;
-  nome: string;
-  telefone: string;
-  mensagem?: string;
-}): Promise<{ protocolo?: string; erro?: string }> {
-  const { data, error } = await supabase.rpc("pedir_sobre_meus_dados", {
-    p_tipo: dados.tipo,
-    p_nome: dados.nome,
-    p_telefone: dados.telefone,
-    p_mensagem: dados.mensagem ?? null,
-  });
+export async function pedirSobreMeusDados(
+  dados: {
+    tipo: TipoDePedido;
+    nome: string;
+    telefone: string;
+    mensagem?: string;
+  },
+  captcha?: string | null,
+): Promise<{ protocolo?: string; erro?: string; captcha?: boolean }> {
+  const { data, error } = await chamarFuncaoPublica<string>(
+    "pedir_sobre_meus_dados",
+    {
+      p_tipo: dados.tipo,
+      p_nome: dados.nome,
+      p_telefone: dados.telefone,
+      p_mensagem: dados.mensagem ?? null,
+    },
+    captcha,
+  );
   if (error) {
     const msg = error.message ?? "";
+    const doCaptcha = erroDoCaptcha(error);
+    if (doCaptcha) return { erro: doCaptcha, captcha: true };
     if (/LIMITE_DE_PEDIDOS/.test(msg)) return { erro: "Recebemos muitos pedidos deste número hoje. Tente amanhã ou fale com o restaurante pelo WhatsApp." };
     if (/DADOS_INVALIDOS: telefone/.test(msg)) return { erro: "Confira o WhatsApp: DDD + número." };
     if (/DADOS_INVALIDOS: nome/.test(msg)) return { erro: "Confira o nome." };

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { ANTECEDENCIA_DIAS, DIAS_DA_SEMANA_ABERTOS, HORARIOS, TOLERANCIA_MINUTOS, horariosSeCruzam, mesas, minutosDoHorario, type Mesa } from "./regras";
-import { chaveDoTelefone } from "./validacao";
+import { chaveDoTelefone, nomeCompleto } from "./validacao";
+import { chamarFuncaoPublica, erroDoCaptcha } from "./rpcPublica";
 
 // QUEM LÊ O QUÊ
 //   Site do cliente (visitante, sem login): nunca toca na tabela "reservas".
@@ -311,14 +312,20 @@ export type ResultadoDaReserva = {
   erro?: string;
   /** O erro foi "alguém levou uma das mesas no meio-tempo". */
   mesaTomada?: boolean;
+  /** O erro foi o captcha (marcar de novo). */
+  captcha?: boolean;
 };
 
 // Cria a reserva pela função "reservar" do banco: o grupo inteiro ou nada. Se
 // uma das mesas foi levada por outra pessoa no meio-tempo, nenhuma é gravada —
 // o cliente nunca fica com só parte das mesas. Quem garante que duas pessoas
 // não reservam a mesma mesa é o índice único do próprio banco, não o navegador.
-export async function reservar(dados: DadosDaReserva): Promise<ResultadoDaReserva> {
-  const { data, error } = await supabase.rpc("reservar", {
+export async function reservar(
+  dados: DadosDaReserva,
+  /** captcha: token do Turnstile (site do cliente). viaPainel: administrador logado, sem captcha. */
+  opcoes: { captcha?: string | null; viaPainel?: boolean } = {},
+): Promise<ResultadoDaReserva> {
+  const parametros = {
     p_data: dados.dataReserva,
     p_horario: dados.horario,
     p_mesas: dados.mesas,
@@ -327,52 +334,111 @@ export async function reservar(dados: DadosDaReserva): Promise<ResultadoDaReserv
     p_email: dados.email ?? null,
     p_aniversario: dados.aniversario ?? null,
     p_observacao: dados.observacao ?? null,
-  });
+  };
+  const { data, error } = opcoes.viaPainel
+    ? await supabase.rpc("reservar", parametros)
+    : await chamarFuncaoPublica<ReservaRow[]>("reservar", parametros, opcoes.captcha);
 
-  if (error) {
-    const msg = error.message ?? "";
-    const varias = dados.mesas.length > 1;
-    if (/RESTAURANTE_FECHADO/.test(msg)) {
-      return { reservas: [], erro: "O restaurante estará fechado nesta data. Escolha outro dia." };
-    }
-    if (/DATA_FORA_DA_AGENDA/.test(msg)) {
-      return { reservas: [], erro: "Essa data não está mais disponível para reserva. Volte e escolha outra data." };
-    }
-    if (/reservas_aniversario_valido/.test(msg)) {
-      return { reservas: [], erro: "A data de aniversário não é válida. Use dia e mês, por exemplo 12/03." };
-    }
-    if (error.code === "23505") {
-      return {
-        reservas: [],
-        mesaTomada: true,
-        erro: varias
-          ? "Uma das mesas acabou de ser reservada por outra pessoa. Nenhuma mesa foi reservada — volte e escolha de novo."
-          : "Essa mesa acabou de ser reservada por outra pessoa. Volte e escolha outra.",
-      };
-    }
-    if (/LIMITE_DE_RESERVAS: muitas reservas agora/.test(msg)) {
-      return { reservas: [], erro: "Estamos recebendo muitas reservas neste momento. Tente de novo em alguns minutos." };
-    }
-    if (/LIMITE_DE_RESERVAS/.test(msg)) {
-      return { reservas: [], erro: "Este telefone já tem muitas reservas em aberto. Para reservar mais, fale com o restaurante." };
-    }
-    if (/DADOS_INVALIDOS: horario/.test(msg)) return { reservas: [], erro: "Esse horário não está disponível para reserva." };
-    if (/DADOS_INVALIDOS: telefone/.test(msg)) return { reservas: [], erro: "Confira o telefone: DDD + número." };
-    if (/DADOS_INVALIDOS: nome/.test(msg)) return { reservas: [], erro: "Confira o nome da reserva." };
-    if (/DADOS_INVALIDOS: email/.test(msg)) return { reservas: [], erro: "Confira o e-mail." };
-    if (/nao existe|nao comporta/.test(msg)) {
-      return { reservas: [], erro: "As mesas do salão mudaram enquanto você escolhia. Volte e escolha a mesa de novo." };
-    }
-    if (error.code === "PGRST202") {
-      console.error("A função 'reservar' não existe no banco. Rode supabase-completo.sql no Supabase.");
-      return { reservas: [], erro: "As reservas estão em atualização. Tente de novo em alguns minutos." };
-    }
-    console.error("Erro ao criar reserva:", msg);
-    return { reservas: [], erro: "Não foi possível confirmar a reserva agora. Tente de novo." };
-  }
+  if (error) return explicarErroDaReserva(error.message ?? "", error.code, dados.mesas.length > 1, error);
 
   avisarMudanca();
   return { reservas: ((data ?? []) as ReservaRow[]).map(daRow) };
+}
+
+// O que dizer ao cliente quando o banco recusa uma reserva (nova ou alterada).
+function explicarErroDaReserva(msg: string, code: string | undefined, varias: boolean, original?: { message: string; code?: string }): ResultadoDaReserva {
+  const doCaptcha = erroDoCaptcha(original ?? null);
+  if (doCaptcha) return { reservas: [], erro: doCaptcha, captcha: true };
+  if (/RESTAURANTE_FECHADO/.test(msg)) {
+    return { reservas: [], erro: "O restaurante estará fechado nesta data. Escolha outro dia." };
+  }
+  if (/DATA_FORA_DA_AGENDA/.test(msg)) {
+    return { reservas: [], erro: "Essa data não está mais disponível para reserva. Volte e escolha outra data." };
+  }
+  if (/reservas_aniversario_valido/.test(msg)) {
+    return { reservas: [], erro: "A data de aniversário não é válida. Use dia e mês, por exemplo 12/03." };
+  }
+  if (code === "23505") {
+    return {
+      reservas: [],
+      mesaTomada: true,
+      erro: varias
+        ? "Uma das mesas acabou de ser reservada por outra pessoa. Nenhuma mesa foi reservada — volte e escolha de novo."
+        : "Essa mesa acabou de ser reservada por outra pessoa. Volte e escolha outra.",
+    };
+  }
+  if (/LIMITE_DE_RESERVAS: muitas reservas agora/.test(msg)) {
+    return { reservas: [], erro: "Estamos recebendo muitas reservas neste momento. Tente de novo em alguns minutos." };
+  }
+  if (/LIMITE_DE_RESERVAS/.test(msg)) {
+    return { reservas: [], erro: "Este telefone já tem muitas reservas em aberto. Para reservar mais, fale com o restaurante." };
+  }
+  if (/DADOS_INVALIDOS: horario/.test(msg)) return { reservas: [], erro: "Esse horário não está disponível para reserva." };
+  if (/DADOS_INVALIDOS: telefone/.test(msg)) return { reservas: [], erro: "Confira o telefone: DDD + número." };
+  if (/DADOS_INVALIDOS: nome e sobrenome/.test(msg)) return { reservas: [], erro: "Digite nome e sobrenome, como em um documento." };
+  if (/DADOS_INVALIDOS: nome/.test(msg)) return { reservas: [], erro: "Confira o nome da reserva." };
+  if (code === "CONFIG") return { reservas: [], erro: msg };
+  if (/DADOS_INVALIDOS: email/.test(msg)) return { reservas: [], erro: "Confira o e-mail." };
+  if (/nao existe|nao comporta/.test(msg)) {
+    return { reservas: [], erro: "As mesas do salão mudaram enquanto você escolhia. Volte e escolha a mesa de novo." };
+  }
+  if (code === "PGRST202") {
+    console.error("A função 'reservar' não existe no banco. Rode supabase-completo.sql no Supabase.");
+    return { reservas: [], erro: "As reservas estão em atualização. Tente de novo em alguns minutos." };
+  }
+  console.error("Erro ao criar reserva:", msg);
+  return { reservas: [], erro: "Não foi possível confirmar a reserva agora. Tente de novo." };
+}
+
+// ---------------------------------------------------------------------------
+// Cliente alterando a própria reserva (supabase-migration-reserva-cliente.sql)
+// ---------------------------------------------------------------------------
+
+export type ResultadoDaConferencia = "ok" | "telefone" | "bloqueada" | "encerrada" | "ja_cancelada" | "nao_encontrada" | "erro";
+
+// Confere os 4 últimos dígitos ANTES de o cliente escolher a reserva nova.
+export async function conferirMinhaReserva(id: string, finalDoTelefone: string): Promise<ResultadoDaConferencia> {
+  const { data, error } = await supabase.rpc("conferir_minha_reserva", { p_id: id, p_final_telefone: finalDoTelefone });
+  if (error) {
+    console.error("Erro ao conferir a reserva:", error.message);
+    return "erro";
+  }
+  const respostas: ResultadoDaConferencia[] = ["ok", "telefone", "bloqueada", "encerrada", "ja_cancelada", "nao_encontrada"];
+  return respostas.includes(data) ? (data as ResultadoDaConferencia) : "erro";
+}
+
+// Troca a reserva (o grupo inteiro) pela nova. Tudo ou nada: se a nova falhar,
+// a antiga continua valendo.
+export async function alterarMinhaReserva(
+  id: string,
+  finalDoTelefone: string,
+  nova: Pick<DadosDaReserva, "dataReserva" | "horario" | "mesas">,
+): Promise<ResultadoDaReserva & { status?: ResultadoDaConferencia }> {
+  const { data, error } = await supabase.rpc("alterar_minha_reserva", {
+    p_id: id,
+    p_final_telefone: finalDoTelefone,
+    p_data: nova.dataReserva,
+    p_horario: nova.horario,
+    p_mesas: nova.mesas,
+  });
+  if (error) {
+    console.error("Erro ao alterar a reserva:", error.message);
+    return { reservas: [], erro: "Não foi possível alterar agora. Confira a conexão e tente de novo.", status: "erro" };
+  }
+  const r = data as { status: string; reservas?: ReservaRow[]; codigo?: string; mensagem?: string };
+  if (r.status === "ok") {
+    avisarMudanca();
+    return { reservas: (r.reservas ?? []).map(daRow), status: "ok" };
+  }
+  if (r.status === "erro") return { ...explicarErroDaReserva(r.mensagem ?? "", r.codigo, nova.mesas.length > 1), status: "erro" };
+  const motivo: Record<string, string> = {
+    telefone: "Os 4 números não conferem com o telefone da reserva. Volte à consulta e tente de novo.",
+    bloqueada: "Foram muitas tentativas com o número errado. Para alterar esta reserva, fale com o restaurante.",
+    encerrada: "Esta reserva já foi encerrada e não pode mais ser alterada.",
+    ja_cancelada: "Esta reserva já foi cancelada.",
+    nao_encontrada: "Não encontramos mais esta reserva. Faça a consulta de novo.",
+  };
+  return { reservas: [], erro: motivo[r.status] ?? "Não foi possível alterar agora.", status: (r.status as ResultadoDaConferencia) ?? "erro" };
 }
 
 // As telas do painel abertas NESTE aparelho recarregam assim que ele próprio
@@ -446,7 +512,7 @@ type ConsultaRow = {
 // em qualquer ordem e sem ligar pra acento — "maria silva" acha "Maria Souza
 // Silva". O navegador não recebe mais a lista de todas as reservas.
 export async function consultarReservas(termo: string): Promise<{ reservas: ReservaConsultada[]; erro?: string }> {
-  if (termo.replace(/\s/g, "").length < MINIMO_LETRAS_NA_BUSCA) return { reservas: [] };
+  if (!nomeCompleto(termo)) return { reservas: [] };
 
   const { data, error } = await supabase.rpc("consultar_reservas", { p_nome: termo.trim() });
   if (error) {

@@ -92,7 +92,7 @@ export default function NewReservationModal({
       telefone: telefone.trim(),
       aniversario: aniversario.trim() || undefined,
       observacao: observacao.trim() || undefined,
-    });
+    }, { viaPainel: true });
     setEnviando(false);
     if (mensagemErro || criadas.length === 0) {
       setErro(mensagemErro ?? "Não foi possível criar a reserva.");

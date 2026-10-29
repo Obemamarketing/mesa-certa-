@@ -96,7 +96,39 @@ ar a cada poucos meses.
 Authentication > Users > (a pessoa) > apagar o fator de MFA. Ela entra só com
 a senha e ativa de novo com o celular novo.
 
+## Captcha (Cloudflare Turnstile): como ligar
+
+O código já está pronto. O captcha protege **reservar, entrar na fila e "Meus
+dados"**: quem não passa pelo "não sou um robô" não grava nada. Na maioria das
+vezes o cliente nem precisa clicar (a Cloudflare decide sozinha). Sem as chaves,
+o site funciona como antes, sem captcha.
+
+**Ordem obrigatória:**
+
+1. **Cloudflare** (grátis): crie uma conta em dash.cloudflare.com, vá em
+   **Turnstile** > **Add widget**:
+   - Widget name: `ZéPelin reservas`
+   - Hostnames: `zepellinmesacerta.com.br` e `mesa-certa.vercel.app`
+   - Widget mode: **Managed**
+   - Ela mostra a **Site Key** (pública) e a **Secret Key** (secreta).
+2. **Supabase**: Settings > API > copie a chave **service_role** (secreta).
+3. **Vercel** > projeto mesa-certa > Settings > **Environment Variables**,
+   adicione (ambiente Production):
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = a Site Key
+   - `TURNSTILE_SECRET_KEY` = a Secret Key
+   - `SUPABASE_SERVICE_ROLE_KEY` = a service_role
+4. Vercel > Deployments > último > **Redeploy**.
+5. Abra o site, faça uma reserva de teste e confira que aparece o quadradinho
+   da Cloudflare e que a reserva entra. Cancele a reserva de teste.
+6. **Só depois**, no Supabase (SQL Editor), rode `supabase-fechar-reserva-direta.sql`.
+   A partir daí, o banco recusa reserva feita direto, sem passar pelo captcha.
+
+**Se o captcha der problema num sábado:** veja `PLANO-DE-EMERGENCIA.md`
+(item 3c): `select reabrir_reserva_direta();` e tirar a Site Key da Vercel.
+
+As duas chaves secretas (Secret Key e service_role) **só na Vercel**: nunca no
+código, nunca com `NEXT_PUBLIC_`, nunca em conversa.
+
 ## O que ainda falta (próximos passos)
 
-- Captcha invisível (Cloudflare Turnstile) na reserva e na consulta: é o que
-  barra robô de verdade; o freio só diminui o estrago.
+- Monitor de "site no ar" (UptimeRobot, grátis) avisando por e-mail/celular.

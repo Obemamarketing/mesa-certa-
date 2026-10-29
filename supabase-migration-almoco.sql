@@ -2,7 +2,7 @@
 -- Rode UMA vez no SQL Editor do Supabase (pode rodar de novo sem problema).
 -- PRÉ-REQUISITO: as partes anteriores (o supabase-completo.sql roda tudo, na ordem).
 --
--- O QUE MUDA (decisão de 30/10/2026 para o ZéPelin, que é o piloto)
+-- O QUE MUDA (decisão de 28/10/2026 para o ZéPelin, que é o piloto)
 --   1. Só SÁBADO recebe reserva (antes: sexta, sábado e domingo).
 --   2. Horários de almoço: 12h, 12h30, 13h, 13h30, 14h e 14h30 (antes: só 19h30).
 --   3. Cada reserva segura a mesa por 1h30: quem reserva a mesa 05 às 12h

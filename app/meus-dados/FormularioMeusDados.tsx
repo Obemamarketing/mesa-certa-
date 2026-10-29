@@ -5,6 +5,7 @@ import { PRAZOS } from "@/lib/empresa";
 import { TIPOS_DE_PEDIDO, pedirSobreMeusDados, type TipoDePedido } from "@/lib/privacidade";
 import { LIMITES, telefoneValido } from "@/lib/validacao";
 import Campo from "../Campo";
+import Captcha from "../Captcha";
 
 export default function FormularioMeusDados() {
   const [tipo, setTipo] = useState<TipoDePedido>("exclusao");
@@ -13,6 +14,8 @@ export default function FormularioMeusDados() {
   const [mensagem, setMensagem] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [passe, setPasse] = useState<string | null>(null);
+  const [reinicio, setReinicio] = useState(0);
   const [protocolo, setProtocolo] = useState<string | null>(null);
 
   const nomeOk = nome.trim().length >= 2;
@@ -24,7 +27,8 @@ export default function FormularioMeusDados() {
     if (!nomeOk || !telefoneOk || enviando) return;
     setEnviando(true);
     setErro(null);
-    const r = await pedirSobreMeusDados({ tipo, nome: nome.trim(), telefone: telefone.trim(), mensagem: mensagem.trim() || undefined });
+    const r = await pedirSobreMeusDados({ tipo, nome: nome.trim(), telefone: telefone.trim(), mensagem: mensagem.trim() || undefined }, passe);
+    setReinicio((n) => n + 1);
     setEnviando(false);
     if (r.erro || !r.protocolo) {
       setErro(r.erro ?? "Não foi possível enviar agora. Tente de novo.");
@@ -74,6 +78,7 @@ export default function FormularioMeusDados() {
         <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} rows={3} maxLength={500} className="w-full outline-none text-[15px] bg-transparent resize-none" />
       </Campo>
 
+      <Captcha aoMudar={setPasse} chaveDeReinicio={reinicio} />
       {erro && (
         <p role="alert" className="text-[13px] font-semibold" style={{ color: "var(--color-error)" }}>
           {erro}

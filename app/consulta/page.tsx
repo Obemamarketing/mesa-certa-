@@ -9,16 +9,20 @@ import { reservaBrand } from "@/lib/reservaBrand";
 import {
   cancelarMinhaReserva,
   codigoDaReserva,
+  conferirMinhaReserva,
   consultarReservas,
+  horaBonita,
   horaLimiteDaTolerancia,
-  MINIMO_LETRAS_NA_BUSCA,
+  listaDeMesas,
   relogioSaoPaulo,
   rotuloDaReserva,
   statusChegada,
   type ReservaConsultada,
   type ResultadoDoCancelamento,
 } from "@/lib/reservas";
-import { soDigitos } from "@/lib/validacao";
+import { nomeCompleto, soDigitos } from "@/lib/validacao";
+import { baixarComprovante } from "@/lib/comprovante";
+import { guardarAlteracao } from "@/lib/alteracao";
 import { useAgora } from "@/lib/relogio";
 import { useMesasConfig } from "@/lib/mesas";
 
@@ -28,7 +32,7 @@ function estadoDaReserva(r: ReservaConsultada, minutosAgora: number | null): Est
   if (r.cancelada) return { rotulo: "Cancelada", fundo: "var(--color-error-soft)", cor: "var(--color-error)", nota: "Esta reserva foi cancelada e a mesa foi liberada." };
   if (r.chegou) return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "Você já foi recebido nesta reserva. Esperamos você de novo!" };
   // a data da reserva entra na conta: reserva de outra data não está "na
-  // tolerância" só porque o relógio de hoje passou das 19h30
+  // tolerância" só porque o relógio de hoje passou do horário dela
   const chegada = statusChegada(r, minutosAgora);
   if (chegada === "atrasado") return { rotulo: "Encerrada", fundo: "var(--color-border)", cor: "var(--color-text-muted)", nota: "A data desta reserva já passou. Se quiser voltar, faça uma nova reserva." };
   if (chegada === "tolerancia") return { rotulo: "Em tolerância", fundo: "var(--color-secondary-soft)", cor: "var(--color-secondary-dark)", nota: "Sua mesa está sendo guardada. Chegue até o fim da tolerância." };
@@ -62,8 +66,9 @@ export default function ConsultaPage() {
   const [processandoId, setProcessandoId] = useState<string | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
 
+  const termoOk = nomeCompleto(termo);
   async function buscar() {
-    if (termo.trim().length < MINIMO_LETRAS_NA_BUSCA || buscando) return;
+    if (!termoOk || buscando) return;
     setBuscando(true);
     setAcao(null);
     setErroAcao(null);
@@ -72,6 +77,41 @@ export default function ConsultaPage() {
     setErroBusca(r.erro ?? null);
     setResultados(r.erro ? null : r.reservas);
     setBuscando(false);
+  }
+
+  const doGrupo = (r: ReservaConsultada) =>
+    (resultados ?? []).filter((x) => !x.cancelada && x.dataReserva === r.dataReserva && x.horario === r.horario && x.criadaEm === r.criadaEm);
+
+  // Alterar: confere os 4 dígitos AGORA e leva para a tela de reserva. A
+  // reserva antiga só é trocada quando a nova for confirmada.
+  async function irParaAlteracao(r: ReservaConsultada) {
+    if (finalTelefone.length !== 4) return;
+    setProcessandoId(r.id);
+    setErroAcao(null);
+    const resultado = await conferirMinhaReserva(r.id, finalTelefone);
+    if (resultado !== "ok") {
+      setProcessandoId(null);
+      setErroAcao(MOTIVO[resultado as ResultadoDoCancelamento] ?? MOTIVO.erro!);
+      return;
+    }
+    const grupo = doGrupo(r);
+    const mesasDoGrupo = (grupo.length ? grupo : [r]).map((x) => x.mesaNumero);
+    const pessoas = (grupo.length ? grupo : [r]).reduce((soma, x) => soma + x.pessoas, 0);
+    const ok = guardarAlteracao({
+      id: r.id,
+      digitos: finalTelefone,
+      dataReserva: r.dataReserva!,
+      horario: r.horario,
+      mesas: mesasDoGrupo,
+      pessoas,
+      rotulo: `${rotuloDaReserva(r)} às ${horaBonita(r.horario)} · mesa${mesasDoGrupo.length > 1 ? "s" : ""} ${listaDeMesas(mesasDoGrupo)}`,
+    });
+    if (!ok) {
+      setProcessandoId(null);
+      setErroAcao("Este navegador não deixou guardar a alteração. Tente em outro navegador ou fale com o restaurante.");
+      return;
+    }
+    router.push("/");
   }
 
   async function cancelar(id: string, depois?: () => void) {
@@ -106,12 +146,12 @@ export default function ConsultaPage() {
           </span>
           <h1 className="font-display text-[34px] sm:text-[40px] leading-[1.1]" style={{ color: "var(--color-dark)" }}>Consultar minha reserva</h1>
           <p className="text-[15px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-            Digite o nome que você usou ao reservar para ver os detalhes da sua reserva.
+            Digite o nome e o sobrenome que você usou ao reservar para ver, alterar ou cancelar a sua reserva.
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
-          <label htmlFor="termo" className="text-[12.5px] font-medium" style={{ color: "var(--color-text-muted)" }}>Nome na reserva</label>
+          <label htmlFor="termo" className="text-[12.5px] font-medium" style={{ color: "var(--color-text-muted)" }}>Nome e sobrenome da reserva</label>
           <input
             id="termo"
             value={termo}
@@ -123,12 +163,15 @@ export default function ConsultaPage() {
           />
           <button
             onClick={buscar}
-            disabled={termo.trim().length < MINIMO_LETRAS_NA_BUSCA || buscando}
+            disabled={!termoOk || buscando}
             className="py-4 text-[15px] font-semibold text-white disabled:opacity-40"
             style={{ background: "var(--color-primary)", borderRadius: "14px" }}
           >
             {buscando ? "Consultando…" : "Consultar reserva"}
           </button>
+          {termo.trim() && !termoOk && (
+            <p className="text-[12.5px]" style={{ color: "var(--color-text-muted)" }}>Digite também o sobrenome, do mesmo jeito que na reserva.</p>
+          )}
         </div>
 
         {erroBusca && (
@@ -141,7 +184,7 @@ export default function ConsultaPage() {
           <div className="border px-5 py-6 flex flex-col gap-1.5" style={{ borderColor: "var(--color-border)", borderRadius: "16px", background: "var(--color-surface)" }}>
             <p className="font-display text-xl" style={{ color: "var(--color-dark)" }}>Reserva não encontrada</p>
             <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-              Não encontramos nenhuma reserva com esse nome. Confira se digitou o mesmo nome usado na reserva e tente de novo.
+              Não encontramos nenhuma reserva com esse nome e sobrenome. Confira se digitou do mesmo jeito que na reserva e tente de novo.
             </p>
             <Link href="/" className="text-[14px] font-semibold mt-2" style={{ color: "var(--color-primary)" }}>Fazer uma nova reserva →</Link>
           </div>
@@ -168,11 +211,11 @@ export default function ConsultaPage() {
               </div>
 
               <dl className="px-6 py-4 flex flex-col text-[14.5px]">
-                <Linha rotulo="Horário" valor={r.horario} />
+                <Linha rotulo="Horário" valor={horaBonita(r.horario)} />
                 <Linha rotulo="Pessoas" valor={`${r.pessoas} pessoa${r.pessoas === 1 ? "" : "s"}`} />
                 <Linha rotulo="Mesa" valor={`Mesa ${r.mesaNumero}`} />
                 <Linha rotulo="Área" valor={mesa?.zona ?? "—"} />
-                <Linha rotulo="Tolerância" valor={`Chegue até ${horaLimiteDaTolerancia(r.horario)}`} ultima />
+                <Linha rotulo="Tolerância" valor={`Chegue até ${horaBonita(horaLimiteDaTolerancia(r.horario))}`} ultima />
               </dl>
 
               {estado.nota && (
@@ -182,7 +225,28 @@ export default function ConsultaPage() {
               )}
 
               {!encerrada && !confirmando && (
-                <div className="px-6 pb-6 pt-1 flex flex-col sm:flex-row gap-2.5">
+                <div className="px-6 pb-6 pt-1 flex flex-col gap-2.5">
+                <button
+                  onClick={() =>
+                    baixarComprovante({
+                      titulo: "Reserva confirmada",
+                      data: rotuloDaReserva(r),
+                      horario: horaBonita(r.horario),
+                      pessoas: r.pessoas,
+                      mesas: r.mesaNumero,
+                      area: mesa?.zona,
+                      codigo: codigoDaReserva(r.id),
+                      tolerancia: `Chegue até as ${horaBonita(horaLimiteDaTolerancia(r.horario))}`,
+                      site: window.location.host,
+                    })
+                  }
+                  className="py-3 text-[14px] font-semibold text-white flex items-center justify-center gap-2"
+                  style={{ background: "var(--color-accent-dark)", borderRadius: "12px" }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+                  Baixar comprovante
+                </button>
+                <div className="flex flex-col sm:flex-row gap-2.5">
                   <button
                     onClick={() => { setErroAcao(null); setAcao({ id: r.id, tipo: "alterar" }); }}
                     className="flex-1 py-3 text-[14px] font-semibold border"
@@ -198,6 +262,7 @@ export default function ConsultaPage() {
                     Cancelar reserva
                   </button>
                 </div>
+                </div>
               )}
 
               {!encerrada && confirmando && (
@@ -205,7 +270,7 @@ export default function ConsultaPage() {
                   <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-dark)" }}>
                     {confirmando === "cancelar"
                       ? "Tem certeza que deseja cancelar? A mesa será liberada para outros clientes."
-                      : "Para alterar data, mesa ou número de pessoas, cancelamos esta reserva e você escolhe uma nova em seguida. Deseja continuar?"}
+                      : "Você vai escolher a nova data, horário, mesa ou número de pessoas. Esta reserva continua valendo até você confirmar a nova."}
                   </p>
 
                   <div className="flex flex-col gap-1.5">
@@ -216,7 +281,7 @@ export default function ConsultaPage() {
                       id={`final-${r.id}`}
                       value={finalTelefone}
                       onChange={(e) => { setFinalTelefone(soDigitos(e.target.value).slice(0, 4)); setErroAcao(null); }}
-                      onKeyDown={(e) => e.key === "Enter" && cancelar(r.id, confirmando === "alterar" ? () => router.push("/") : undefined)}
+                      onKeyDown={(e) => e.key === "Enter" && (confirmando === "alterar" ? irParaAlteracao(r) : cancelar(r.id))}
                       placeholder="0000"
                       inputMode="numeric"
                       autoComplete="off"
@@ -232,12 +297,12 @@ export default function ConsultaPage() {
 
                   <div className="flex flex-col sm:flex-row gap-2.5">
                     <button
-                      onClick={() => cancelar(r.id, confirmando === "alterar" ? () => router.push("/") : undefined)}
+                      onClick={() => (confirmando === "alterar" ? irParaAlteracao(r) : cancelar(r.id))}
                       disabled={processandoId === r.id || finalTelefone.length !== 4}
                       className="flex-1 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
                       style={{ background: "var(--color-primary)", borderRadius: "12px" }}
                     >
-                      {processandoId === r.id ? "Aguarde…" : confirmando === "cancelar" ? "Sim, cancelar" : "Cancelar e escolher nova reserva"}
+                      {processandoId === r.id ? "Aguarde…" : confirmando === "cancelar" ? "Sim, cancelar" : "Continuar para escolher"}
                     </button>
                     <button
                       onClick={() => { setAcao(null); setErroAcao(null); }}

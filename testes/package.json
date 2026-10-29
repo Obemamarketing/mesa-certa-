@@ -1,0 +1,16 @@
+{
+  "name": "mesa-certa-testes",
+  "private": true,
+  "description": "Testes automáticos do Mesa Certa: banco (Postgres local), regras puras e navegador (site local ligado a um Supabase falso). Nunca tocam no banco real.",
+  "scripts": {
+    "tudo": "node rodar.cjs",
+    "banco": "node rodar.cjs banco",
+    "unidade": "node rodar.cjs unidade",
+    "navegador": "node rodar.cjs navegador"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "axe-core": "4.10.2",
+    "puppeteer-core": "25.13.0"
+  }
+}

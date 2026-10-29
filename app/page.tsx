@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,8 @@ import {
   lugaresLivres,
   lugaresLivresNoDia,
   relogioSaoPaulo,
+  alterarMinhaReserva,
+  codigoDaReserva,
   reservar,
   rotuloDaData,
   rotuloDaReserva,
@@ -32,7 +34,10 @@ import {
   type Mesa,
   type Reserva,
 } from "@/lib/reservas";
-import { LIMITES, aniversarioValido, mascaraAniversario, telefoneValido } from "@/lib/validacao";
+import { LIMITES, aniversarioValido, mascaraAniversario, nomeCompleto, telefoneValido } from "@/lib/validacao";
+import { baixarComprovante } from "@/lib/comprovante";
+import { esquecerAlteracao, lerAlteracao, type Alteracao } from "@/lib/alteracao";
+import Captcha from "./Captcha";
 import { horaLimiteDaTolerancia } from "@/lib/regras";
 import Campo from "./Campo";
 import RodapeLegal from "./RodapeLegal";
@@ -63,7 +68,21 @@ export default function ReservasPage() {
   // só quais mesas estão tomadas em cada data — o site do cliente não recebe
   // nome nem telefone de ninguém
   const router = useRouter();
-  const { ocupadas, recarregar: recarregarMesas } = useMesasOcupadas();
+  const { ocupadas: todasOcupadas, recarregar: recarregarTodas } = useMesasOcupadas();
+
+  // ALTERAÇÃO: o cliente veio da consulta para trocar a própria reserva. A
+  // reserva antiga continua valendo até a nova ser confirmada; enquanto isso,
+  // as mesas dela aparecem livres para ELE (pode manter a mesma mesa e trocar
+  // só o horário, por exemplo).
+  const [alteracao, setAlteracao] = useState<Alteracao | null>(null);
+  const [alterada, setAlterada] = useState(false);
+  const semAMinha = (lista: typeof todasOcupadas) =>
+    alteracao ? lista.filter((o) => !(o.dataReserva === alteracao.dataReserva && o.horario === alteracao.horario && alteracao.mesas.includes(o.mesaNumero))) : lista;
+  const ocupadas = semAMinha(todasOcupadas);
+  const recarregarMesas = async () => {
+    const lista = await recarregarTodas();
+    return lista ? semAMinha(lista) : null;
+  };
   const { mesas } = useMesasConfig();
   const { fechados } = useDiasFechados();
   const [etapaEscolhida, setEtapa] = useState<Etapa>("inicio");
@@ -92,6 +111,26 @@ export default function ReservasPage() {
 
   const [pessoas, setPessoas] = useState(2);
   const [pessoasCustom, setPessoasCustom] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const a = lerAlteracao();
+      if (!a) return;
+      setAlteracao(a);
+      setPessoas(a.pessoas);
+      setPessoasCustom(a.pessoas > 10);
+      setDataEscolhida(a.dataReserva);
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
+  function desistirDaAlteracao() {
+    esquecerAlteracao();
+    setAlteracao(null);
+    setEtapa("inicio");
+    router.push("/consulta");
+  }
+  // "passe" do captcha (quando ligado) e um contador para pedir um passe novo
+  const [passe, setPasse] = useState<string | null>(null);
+  const [reinicioDoCaptcha, setReinicioDoCaptcha] = useState(0);
   // Horário escolhido pelo cliente (almoço: 12h, 12h30 … 14h30). Começa vazio:
   // a etapa "horário" só libera o Continuar depois da escolha.
   const [horarioEscolhido, setHorarioEscolhido] = useState<string | null>(null);
@@ -121,7 +160,8 @@ export default function ReservasPage() {
   // Dados de contato: o WhatsApp é por onde o lembrete chega, então um número
   // que não é telefone não pode passar. O aviso só aparece depois que a pessoa
   // começou a digitar — campo vazio não ganha bronca.
-  const nomeOk = nome.trim().length >= 2;
+  const nomeOk = nomeCompleto(nome);
+  const avisoNome = nome.trim() && !nomeOk ? "Digite nome e sobrenome (é por eles que você acha a reserva depois)." : null;
   const telefoneOk = telefoneValido(telefone);
   // aniversário é opcional (só dia e mês); se a pessoa começou a preencher, tem que terminar certo
   const aniversarioOk = aniversarioValido(aniversario);
@@ -131,7 +171,6 @@ export default function ReservasPage() {
 
   const dicaAniversario = "Opcional. Só para lembrarmos da data se você vier perto dela.";
   const dicaObservacao = "Opcional. Se contar uma alergia ou necessidade de acessibilidade, usamos só para preparar sua visita.";
-  const horaLimite = horaLimiteDaTolerancia(horario).replace(":", "h");
 
   // Escolhe ou desmarca. Com o grupo já acomodado não entra mesa nova: ninguém
   // reserva mesa a mais do que precisa. E só entra mesa livre NESSA data — o
@@ -151,22 +190,29 @@ export default function ReservasPage() {
   }
 
   async function confirmar() {
-    if (!situacao.cobre || !dadosOk || enviando || !data) return;
+    if (!situacao.cobre || (!alteracao && !dadosOk) || enviando || !data) return;
     setEnviando(true);
     setErro(null);
 
     // Uma reserva por mesa, todas gravadas de uma vez pelo banco: ou entra o
     // grupo inteiro, ou não entra nada — o cliente nunca fica com só parte das
-    // mesas.
-    const resultado = await reservar({
-      dataReserva: data,
-      horario,
-      mesas: situacao.partes,
-      nome: nome.trim(),
-      telefone: telefone.trim(),
-      aniversario: aniversario.trim() || undefined,
-      observacao: observacao.trim() || undefined,
-    });
+    // mesas. Na alteração, a antiga só sai se a nova entrar.
+    const resultado = alteracao
+      ? await alterarMinhaReserva(alteracao.id, alteracao.digitos, { dataReserva: data, horario, mesas: situacao.partes })
+      : await reservar(
+          {
+            dataReserva: data,
+            horario,
+            mesas: situacao.partes,
+            nome: nome.trim(),
+            telefone: telefone.trim(),
+            aniversario: aniversario.trim() || undefined,
+            observacao: observacao.trim() || undefined,
+          },
+          { captcha: passe },
+        );
+    // o passe do captcha vale uma vez só: pega outro para uma nova tentativa
+    if (!alteracao) setReinicioDoCaptcha((n) => n + 1);
 
     if (resultado.erro || resultado.reservas.length === 0) {
       const mensagem = resultado.erro ?? "Não foi possível confirmar a reserva agora. Tente de novo.";
@@ -196,8 +242,13 @@ export default function ReservasPage() {
 
     setEnviando(false);
     setReservasFeitas(resultado.reservas);
+    if (alteracao) {
+      esquecerAlteracao();
+      setAlteracao(null);
+      setAlterada(true);
+    }
     setEtapa("confirmada");
-    recarregarMesas();
+    recarregarTodas();
   }
 
   function reiniciar() {
@@ -212,6 +263,7 @@ export default function ReservasPage() {
     setReservasFeitas([]);
     setErro(null);
     setAlertaMesa(null);
+    setAlterada(false);
   }
 
   // Data lotada para este grupo: as mesas livres não somam lugares para todos.
@@ -226,14 +278,18 @@ export default function ReservasPage() {
     if (!data || !nomeOk || !telefoneOk || enviandoFila) return;
     setEnviandoFila(true);
     setErroFila(null);
-    const r = await entrarNaFila({
-      dataReserva: data,
-      horario,
-      pessoas,
-      nome: nome.trim(),
-      telefone: telefone.trim(),
-      observacao: observacao.trim() || undefined,
-    });
+    const r = await entrarNaFila(
+      {
+        dataReserva: data,
+        horario,
+        pessoas,
+        nome: nome.trim(),
+        telefone: telefone.trim(),
+        observacao: observacao.trim() || undefined,
+      },
+      passe,
+    );
+    setReinicioDoCaptcha((n) => n + 1);
     if (r.erro || !r.codigo) {
       setEnviandoFila(false);
       setErroFila(r.erro ?? "Não foi possível entrar na fila agora. Tente de novo.");
@@ -243,8 +299,22 @@ export default function ReservasPage() {
     router.push(`/fila/${r.codigo}`);
   }
 
+  const faixaAlteracao =
+    alteracao && etapa !== "confirmada" ? (
+      <div role="status" className="w-full px-5 py-3 text-[13.5px] flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center" style={{ background: "var(--color-secondary-soft)", color: "var(--color-dark)", borderBottom: "1px solid var(--color-secondary)" }}>
+        <span>
+          <strong>Alterando sua reserva</strong> de {alteracao.rotulo}. Ela continua valendo até você confirmar a nova.
+        </span>
+        <button type="button" onClick={desistirDaAlteracao} className="font-semibold underline underline-offset-4" style={{ color: "var(--color-primary)" }}>
+          Desistir
+        </button>
+      </div>
+    ) : null;
+
   if (etapa === "inicio") {
     return (
+      <>
+      {faixaAlteracao}
       <TelaInicio
         datas={datas}
         data={data}
@@ -255,9 +325,10 @@ export default function ReservasPage() {
         pessoasCustom={pessoasCustom}
         setPessoasCustom={setPessoasCustom}
         onBuscar={() => setEtapa("horario")}
-        lotado={lotado}
+        lotado={lotado && !alteracao}
         onFila={() => { setErroFila(null); setEtapa("fila"); }}
       />
+      </>
     );
   }
 
@@ -276,6 +347,7 @@ export default function ReservasPage() {
 
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {faixaAlteracao}
         {/* ===== MOBILE — inalterado ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
           <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
@@ -379,6 +451,7 @@ export default function ReservasPage() {
   if (etapa === "mesa") {
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {faixaAlteracao}
         {/* ===== MOBILE — planta em pe + lista ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
           <EscolhaMesaMobile
@@ -391,7 +464,7 @@ export default function ReservasPage() {
             alerta={alertaMesa}
             onAlternar={alternarMesa}
             onVoltar={() => setEtapa("horario")}
-            onContinuar={() => setEtapa("dados")}
+            onContinuar={() => setEtapa(alteracao ? "revisar" : "dados")}
           />
         </div>
 
@@ -407,7 +480,7 @@ export default function ReservasPage() {
             alerta={alertaMesa}
             onAlternar={alternarMesa}
             onVoltar={() => setEtapa("horario")}
-            onContinuar={() => setEtapa("dados")}
+            onContinuar={() => setEtapa(alteracao ? "revisar" : "dados")}
           />
         </div>
       </main>
@@ -419,6 +492,7 @@ export default function ReservasPage() {
 
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {faixaAlteracao}
         {/* ===== MOBILE — inalterado ===== */}
         <div className="lg:hidden flex-1 flex flex-col">
           <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
@@ -437,8 +511,8 @@ export default function ReservasPage() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <Campo label="Nome completo">
-                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
+                <Campo label="Nome e sobrenome" aviso={avisoNome}>
+                  <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Maria Souza" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
                 </Campo>
                 <Campo label="WhatsApp" aviso={avisoTelefone}>
                   <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" required inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
@@ -504,8 +578,8 @@ export default function ReservasPage() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <Campo grande label="Nome completo">
-                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome completo" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
+                    <Campo grande label="Nome e sobrenome" aviso={avisoNome}>
+                      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Maria Souza" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-[15px] bg-transparent" style={{ color: "var(--color-dark)" }} />
                     </Campo>
                     <div className="grid grid-cols-2 gap-4 items-start">
                       <Campo grande label="WhatsApp" aviso={avisoTelefone}>
@@ -580,6 +654,7 @@ export default function ReservasPage() {
 
   return (
     <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
+        {faixaAlteracao}
       {/* HEADER */}
       <header className="flex items-center justify-between px-5 sm:px-10 py-4 max-w-3xl w-full mx-auto">
         <Link href="/" aria-label={`${reservaBrand.restauranteAtual} — início`}><Image src="/logo-zeplin.jpg" alt="" width={44} height={44} className="rounded-full" /></Link>
@@ -604,8 +679,8 @@ export default function ReservasPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <Campo label="Nome completo">
-                <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Digite seu nome" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
+              <Campo label="Nome e sobrenome" aviso={avisoNome}>
+                <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Maria Souza" required maxLength={LIMITES.nome} autoComplete="name" className="w-full outline-none text-sm bg-transparent" />
               </Campo>
               <Campo label="WhatsApp" aviso={avisoTelefone}>
                 <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" required inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
@@ -622,6 +697,7 @@ export default function ReservasPage() {
               </Campo>
             </div>
 
+            <Captcha aoMudar={setPasse} chaveDeReinicio={reinicioDoCaptcha} />
             {erroFila && <p role="alert" className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erroFila}</p>}
 
             <button
@@ -642,8 +718,8 @@ export default function ReservasPage() {
         {/* TELA 5 — REVISAR */}
         {etapa === "revisar" && horario && escolhidas.length > 0 && (
           <div className="flex flex-col gap-5 pt-4 sm:pt-6">
-            <TopoEtapa onVoltar={() => setEtapa("dados")} etapaNumero={4} />
-            <h1 className="font-display text-2xl">Revise sua reserva</h1>
+            <TopoEtapa onVoltar={() => setEtapa(alteracao ? "mesa" : "dados")} etapaNumero={4} />
+            <h1 className="font-display text-2xl">{alteracao ? "Revise a alteração" : "Revise sua reserva"}</h1>
 
             <div className="border overflow-hidden" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}>
               <div className="relative h-28">
@@ -654,26 +730,39 @@ export default function ReservasPage() {
               </div>
               <div className="flex flex-col gap-2.5 p-5" style={{ background: "var(--color-surface)" }}>
                 <Linha label="Data" valor={rotuloData} />
-                <Linha label="Horário" valor={horario} />
+                <Linha label="Horário" valor={horaBonita(horario)} />
                 <Linha label="Pessoas" valor={`${pessoas} pessoa${pessoas === 1 ? "" : "s"}`} />
                 <Linha label={escolhidas.length > 1 ? "Mesas" : "Mesa"} valor={tituloMesas.replace(/^Mesas? /, "")} />
                 {escolhidas.length > 1 && (
                   <Linha label="Divisão" valor={situacao.partes.map((p) => `${p.numero}: ${p.pessoas}`).join(" · ")} />
                 )}
                 <Linha label="Área" valor={zonasEscolhidas} />
-                <div style={{ borderTop: "1px solid var(--color-border)" }} className="pt-2.5 mt-1 flex flex-col gap-2.5">
-                  <Linha label="Nome" valor={nome} />
-                  <Linha label="WhatsApp" valor={telefone} />
-                  {aniversario && <Linha label="Aniversário" valor={aniversario} />}
-                  {observacao && <Linha label="Observação" valor={observacao} />}
-                </div>
+                {alteracao ? (
+                  <div style={{ borderTop: "1px solid var(--color-border)" }} className="pt-2.5 mt-1 flex flex-col gap-2.5">
+                    <Linha label="Antes" valor={alteracao.rotulo} />
+                  </div>
+                ) : (
+                  <div style={{ borderTop: "1px solid var(--color-border)" }} className="pt-2.5 mt-1 flex flex-col gap-2.5">
+                    <Linha label="Nome" valor={nome} />
+                    <Linha label="WhatsApp" valor={telefone} />
+                    {aniversario && <Linha label="Aniversário" valor={aniversario} />}
+                    {observacao && <Linha label="Observação" valor={observacao} />}
+                  </div>
+                )}
               </div>
             </div>
 
-            <button onClick={() => setEtapa("dados")} className="text-sm font-medium self-start" style={{ color: "var(--color-primary)" }}>
-              Editar reserva
+            <button onClick={() => setEtapa(alteracao ? "mesa" : "dados")} className="text-sm font-medium self-start" style={{ color: "var(--color-primary)" }}>
+              {alteracao ? "Trocar a mesa" : "Editar reserva"}
             </button>
 
+            {alteracao && (
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                Ao confirmar, a reserva anterior é cancelada e esta entra no lugar. Se a mesa nova for tomada antes, nada muda: sua reserva anterior
+                continua valendo.
+              </p>
+            )}
+            {!alteracao && <Captcha aoMudar={setPasse} chaveDeReinicio={reinicioDoCaptcha} />}
             {erro && <p role="alert" className="text-xs font-semibold" style={{ color: "var(--color-error)" }}>{erro}</p>}
 
 
@@ -683,7 +772,7 @@ export default function ReservasPage() {
               className="py-3.5 text-sm font-semibold text-white disabled:opacity-40"
               style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
             >
-              {enviando ? "Confirmando…" : "Confirmar reserva"}
+              {enviando ? "Confirmando…" : alteracao ? "Confirmar alteração" : "Confirmar reserva"}
             </button>
             <Consentimento acao="confirmar" />
           </div>
@@ -695,15 +784,15 @@ export default function ReservasPage() {
             <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "var(--color-accent)" }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
             </div>
-            <h1 className="font-display text-2xl">Reserva confirmada!</h1>
+            <h1 className="font-display text-2xl">{alterada ? "Reserva alterada!" : "Reserva confirmada!"}</h1>
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-              {reservasFeitas.length > 1 ? "Suas mesas estão reservadas" : "Sua mesa está reservada"} no {reservaBrand.restauranteAtual}. Chegue até as {horaLimite}: depois
+              {reservasFeitas.length > 1 ? "Suas mesas estão reservadas" : "Sua mesa está reservada"} no {reservaBrand.restauranteAtual}. Chegue até as {horaLimiteDaTolerancia(reservasFeitas[0].horario).replace(":", "h")}: depois
               da tolerância, a mesa pode ser liberada.
             </p>
 
             <div className="w-full border p-5 flex flex-col gap-2.5 text-left" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
               <Linha label="Data" valor={rotuloDaReserva(reservasFeitas[0])} />
-              <Linha label="Horário" valor={reservasFeitas[0].horario} />
+              <Linha label="Horário" valor={horaBonita(reservasFeitas[0].horario)} />
               <Linha label="Pessoas" valor={`${reservasFeitas.reduce((s, r) => s + r.pessoas, 0)} pessoa${reservasFeitas.reduce((s, r) => s + r.pessoas, 0) === 1 ? "" : "s"}`} />
               <Linha label={reservasFeitas.length > 1 ? "Mesas" : "Mesa"} valor={listaDeMesas(reservasFeitas.map((r) => r.mesaNumero))} />
               {reservasFeitas.length > 1 && (
@@ -713,6 +802,27 @@ export default function ReservasPage() {
             </div>
 
             <div className="w-full flex flex-col gap-2.5 mt-2">
+              <button
+                onClick={() =>
+                  baixarComprovante({
+                    titulo: alterada ? "Reserva alterada" : "Reserva confirmada",
+                    data: rotuloDaReserva(reservasFeitas[0]),
+                    horario: horaBonita(reservasFeitas[0].horario),
+                    pessoas: reservasFeitas.reduce((soma, r) => soma + r.pessoas, 0),
+                    mesas: listaDeMesas(reservasFeitas.map((r) => r.mesaNumero)),
+                    area: [...new Set(reservasFeitas.map((r) => { const m = mesas.find((x) => x.numero === r.mesaNumero); return m ? rotuloZona(m.zona) : ""; }).filter(Boolean))].join(" · "),
+                    nome: reservasFeitas[0].nome,
+                    codigo: codigoDaReserva(reservasFeitas[0].id),
+                    tolerancia: `Chegue até as ${horaLimiteDaTolerancia(reservasFeitas[0].horario).replace(":", "h")}`,
+                    site: window.location.host,
+                  })
+                }
+                className="py-3 text-sm font-semibold text-white flex items-center justify-center gap-2"
+                style={{ background: "var(--color-accent-dark)", borderRadius: "var(--radius-sm)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+                Baixar comprovante
+              </button>
               <button
                 onClick={() => baixarIcsDaReserva(reservasFeitas[0], { mesas: reservasFeitas.map((r) => r.mesaNumero), pessoas: reservasFeitas.reduce((s, r) => s + r.pessoas, 0) })}
                 className="py-3 text-sm font-semibold border"
