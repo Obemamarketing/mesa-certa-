@@ -723,7 +723,7 @@ export default function ReservasPage() {
 
             <div className="border overflow-hidden" style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}>
               <div className="relative h-28">
-                <Image src="/hero-zeplin.webp" alt="" fill className="object-cover" />
+                <Image src="/buffet-zepelin.webp" alt="" fill className="object-cover" />
                 <div className="absolute inset-0 flex items-end p-4" style={{ background: "linear-gradient(to top, rgba(42,23,18,0.75), rgba(42,23,18,0.1))" }}>
                   <span className="font-display text-lg text-white tracking-wide">{reservaBrand.restauranteAtual.toUpperCase()}</span>
                 </div>
@@ -1214,7 +1214,7 @@ function TelaInicio({
           aoReservar={irParaReserva}
         />
         <section className="relative w-full h-[640px] overflow-hidden">
-          <Image src="/hero-zeplin.webp" alt={`Salão do ${reservaBrand.restauranteAtual}`} fill priority className="object-cover" />
+          <Image src="/buffet-zepelin.webp" alt={`Buffet do almoço no ${reservaBrand.restauranteAtual}`} fill priority className="object-cover" />
           <div
             className="absolute inset-0"
             style={{
@@ -1381,7 +1381,7 @@ function TelaInicio({
 
         {/* DIREITA — fotografia, nítida, sem filtro, com grande presença */}
         <div className="relative w-1/2">
-          <Image src="/hero-zeplin.webp" alt={`Salão do ${reservaBrand.restauranteAtual}`} fill priority className="object-cover object-[center_40%]" />
+          <Image src="/buffet-zepelin.webp" alt={`Buffet do almoço no ${reservaBrand.restauranteAtual}`} fill priority className="object-cover object-[center_40%]" />
         </div>
       </div>
       <div className="hidden lg:block">

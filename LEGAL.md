@@ -54,10 +54,11 @@ política: **nenhum problema**. Corrigido nesta revisão:
 
 ## O que depende do restaurante ou de um advogado
 
-- **Fotos com pessoas.** A foto do salão (`public/hero-zeplin.webp`) mostra o
-  rosto de clientes. Uso comercial de imagem de pessoa precisa de autorização
-  dela (Constituição art. 5º, X; Código Civil art. 20). Ou o restaurante tem a
-  autorização por escrito, ou trocamos por uma foto sem rostos reconhecíveis.
+- **Fotos com pessoas.** Resolvido em 29/10/2026: a foto com rostos de clientes
+  saiu do site e entrou a do buffet (`public/buffet-zepelin.webp`, quadro de um
+  vídeo do próprio ZéPelin, sem pessoas). Para fotos futuras com pessoas, vale
+  a regra: só com autorização por escrito (Constituição art. 5º, X; Código
+  Civil art. 20). A foto precisa mostrar o restaurante como ele é (CDC art. 37).
 - **Quem fez a foto e o logo.** Confirmar que o restaurante é dono das imagens
   ou tem licença do fotógrafo/designer (Lei 9.610/1998).
 - **Contrato entre Obema (Mesa Certa) e cada restaurante.** A Obema trata os
