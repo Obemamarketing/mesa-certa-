@@ -9,14 +9,17 @@ import { baixarIcsDaReserva } from "@/lib/ics";
 import {
   DATAS_NA_LISTA,
   DIAS,
-  HORARIO_FIXO,
+  ATENDIMENTO,
+  HORARIOS,
   TOLERANCIA_MINUTOS,
+  horaBonita,
   dataDoIso,
   datasParaReserva,
   diaDaData,
   formatarDataCurta,
   listaDeMesas,
   lugaresLivres,
+  lugaresLivresNoDia,
   relogioSaoPaulo,
   reservar,
   rotuloDaData,
@@ -79,7 +82,7 @@ export default function ReservasPage() {
     datas.find((d) => !fechados.has(d.iso))?.iso ??
     datas[0]?.iso ??
     null;
-  const dia: DiaReserva = (data && diaDaData(data)) || "sexta";
+  const dia: DiaReserva = (data && diaDaData(data)) || "sabado";
   // sem data não existe etapa seguinte: volta pro começo
   const etapa: Etapa = !data && etapaEscolhida !== "confirmada" ? "inicio" : etapaEscolhida;
   const rotuloData = data ? rotuloDaData(data) : "";
@@ -89,7 +92,10 @@ export default function ReservasPage() {
 
   const [pessoas, setPessoas] = useState(2);
   const [pessoasCustom, setPessoasCustom] = useState(false);
-  const horario = HORARIO_FIXO;
+  // Horário escolhido pelo cliente (almoço: 12h, 12h30 … 14h30). Começa vazio:
+  // a etapa "horário" só libera o Continuar depois da escolha.
+  const [horarioEscolhido, setHorarioEscolhido] = useState<string | null>(null);
+  const horario = horarioEscolhido ?? HORARIOS[0];
   // Mesas escolhidas, na ordem da escolha. Grupo que não cabe numa mesa só
   // escolhe várias — o botão Continuar só libera quando a soma cobre todos.
   const [mesasNumeros, setMesasNumeros] = useState<string[]>([]);
@@ -197,6 +203,7 @@ export default function ReservasPage() {
   function reiniciar() {
     setEtapa("inicio");
     setPessoasCustom(false);
+    setHorarioEscolhido(null);
     setMesasNumeros([]);
     setNome("");
     setTelefone("");
@@ -209,7 +216,9 @@ export default function ReservasPage() {
 
   // Data lotada para este grupo: as mesas livres não somam lugares para todos.
   // Aí, em vez de "Buscar mesas", o site oferece a fila de espera.
-  const lotado = Boolean(data) && !fechados.has(data ?? "") && lugaresLivres(mesas, ocupadas, dia, horario, data ?? "") < pessoas;
+  const lotado = Boolean(data) && !fechados.has(data ?? "") && lugaresLivresNoDia(mesas, ocupadas, dia, data ?? "") < pessoas;
+  // lugares livres em cada horário, para a etapa de escolher a hora
+  const livresPorHorario = HORARIOS.map((h) => ({ horario: h, livres: data ? lugaresLivres(mesas, ocupadas, dia, h, data) : 0 }));
   const [enviandoFila, setEnviandoFila] = useState(false);
   const [erroFila, setErroFila] = useState<string | null>(null);
 
@@ -239,10 +248,10 @@ export default function ReservasPage() {
       <TelaInicio
         datas={datas}
         data={data}
-        setData={(iso) => { setDataEscolhida(iso); setMesasNumeros([]); }}
+        setData={(iso) => { setDataEscolhida(iso); setMesasNumeros([]); setHorarioEscolhido(null); }}
         fechados={fechados}
         pessoas={pessoas}
-        setPessoas={(n) => { setPessoas(n); setMesasNumeros([]); }}
+        setPessoas={(n) => { setPessoas(n); setMesasNumeros([]); setHorarioEscolhido(null); }}
         pessoasCustom={pessoasCustom}
         setPessoasCustom={setPessoasCustom}
         onBuscar={() => setEtapa("horario")}
@@ -254,7 +263,16 @@ export default function ReservasPage() {
 
   if (etapa === "horario") {
     const diaLabelCompleto = rotuloDataExtenso;
-    const textoTolerancia = `As reservas são realizadas exclusivamente às 19h30. Pedimos que chegue com até ${TOLERANCIA_MINUTOS} minutos de tolerância para garantir sua reserva.`;
+    const textoTolerancia = `O almoço vai das ${horaBonita(ATENDIMENTO.abre)} às ${horaBonita(ATENDIMENTO.fecha)}. Há ${TOLERANCIA_MINUTOS} minutos de tolerância depois do horário escolhido.`;
+    const horarioOk = Boolean(horarioEscolhido) && (livresPorHorario.find((l) => l.horario === horarioEscolhido)?.livres ?? 0) >= pessoas;
+    const grade = (
+      <EscolhaHorario
+        opcoes={livresPorHorario}
+        pessoas={pessoas}
+        escolhido={horarioEscolhido}
+        aoEscolher={(h) => { setHorarioEscolhido(h); setMesasNumeros([]); }}
+      />
+    );
 
     return (
       <main className="flex-1 flex flex-col w-full" style={{ background: "var(--color-bg)" }}>
@@ -277,14 +295,15 @@ export default function ReservasPage() {
                 </p>
               </div>
 
-              <div className="border p-5 flex items-center gap-4" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "var(--radius-md)" }}>
-                <span className="shrink-0" style={{ color: "var(--color-primary)" }}>{ICONE_RELOGIO_GRANDE}</span>
-                <p className="font-display text-xl" style={{ color: "var(--color-dark)" }}>Reserva às 19h30</p>
+              <div className="flex flex-col gap-2">
+                <p className="font-display text-xl" style={{ color: "var(--color-dark)" }}>Que horas vocês chegam?</p>
+                {grade}
               </div>
               <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>{textoTolerancia}</p>
 
               <button
                 onClick={() => setEtapa("mesa")}
+                disabled={!horarioOk}
                 className="mt-auto py-3.5 text-sm font-semibold text-white disabled:opacity-40"
                 style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
               >
@@ -328,19 +347,23 @@ export default function ReservasPage() {
 
               <div style={{ borderTop: "1px solid var(--color-border)" }} />
 
-              <div className="border p-7 flex items-center gap-5" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "18px" }}>
-                <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-primary-soft)", color: "var(--color-primary)" }}>
-                  {ICONE_RELOGIO_GRANDE}
-                </span>
-                <div>
-                  <p className="font-display text-[28px] leading-tight" style={{ color: "var(--color-dark)" }}>Reserva às 19h30</p>
-                  <p className="text-[14px] mt-2 leading-relaxed max-w-md" style={{ color: "var(--color-text-muted)" }}>{textoTolerancia}</p>
+              <div className="border p-7 flex flex-col gap-5" style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", borderRadius: "18px" }}>
+                <div className="flex items-center gap-5">
+                  <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--color-primary-soft)", color: "var(--color-primary)" }}>
+                    {ICONE_RELOGIO_GRANDE}
+                  </span>
+                  <div>
+                    <p className="font-display text-[28px] leading-tight" style={{ color: "var(--color-dark)" }}>Que horas vocês chegam?</p>
+                    <p className="text-[14px] mt-2 leading-relaxed max-w-md" style={{ color: "var(--color-text-muted)" }}>{textoTolerancia}</p>
+                  </div>
                 </div>
+                {grade}
               </div>
 
               <button
                 onClick={() => setEtapa("mesa")}
-                className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2"
+                disabled={!horarioOk}
+                className="w-full py-4 text-[15px] font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "var(--color-primary)", borderRadius: "14px" }}
               >
                 Continuar
@@ -575,7 +598,7 @@ export default function ReservasPage() {
             <div>
               <h1 className="font-display text-2xl">Fila de espera</h1>
               <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-                {rotuloData} · {pessoas} pessoa{pessoas === 1 ? "" : "s"} · {horario.replace(":", "h")}. Não há mesas livres para o seu grupo nesta data.
+                {rotuloData} · {pessoas} pessoa{pessoas === 1 ? "" : "s"}. Não há mesas livres para o seu grupo nesta data.
                 Se alguém cancelar, o restaurante chama você no WhatsApp, por ordem de chegada na fila.
               </p>
             </div>
@@ -586,6 +609,13 @@ export default function ReservasPage() {
               </Campo>
               <Campo label="WhatsApp" aviso={avisoTelefone}>
                 <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(41) 99999-9999" required inputMode="tel" maxLength={LIMITES.telefone} autoComplete="tel" className="w-full outline-none text-sm bg-transparent" />
+              </Campo>
+              <Campo label="Horário que você prefere">
+                <select value={horario} onChange={(e) => setHorarioEscolhido(e.target.value)} className="w-full outline-none text-sm bg-transparent">
+                  {HORARIOS.map((h) => (
+                    <option key={h} value={h}>{horaBonita(h)}</option>
+                  ))}
+                </select>
               </Campo>
               <Campo label="Observação (opcional)" dica={dicaObservacao}>
                 <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex: pode ser na área externa" rows={2} maxLength={LIMITES.observacao} className="w-full outline-none text-sm bg-transparent resize-none" />
@@ -1202,7 +1232,7 @@ function TelaInicio({
                     Reserve sua mesa
                   </p>
                   <p className="text-[13.5px] mt-1.5" style={{ color: "var(--color-text-muted)" }}>
-                    Escolha a data, o horário e venha viver uma noite especial no {reservaBrand.restauranteAtual}.
+                    Escolha a data, o horário e venha almoçar no {reservaBrand.restauranteAtual}.
                   </p>
                 </div>
 
@@ -1282,5 +1312,48 @@ function Consentimento({ acao }: { acao: string }) {
       <Link href="/cancelamento" className={link} style={{ color: "var(--color-primary)" }}>Política de cancelamento</Link>. Seus dados seguem a{" "}
       <Link href="/privacidade" className={link} style={{ color: "var(--color-primary)" }}>Política de privacidade</Link>.
     </p>
+  );
+}
+
+// Os horários do almoço, com quantos lugares sobram em cada um para o grupo.
+// Horário sem lugar para o grupo fica desabilitado ("lotado").
+function EscolhaHorario({
+  opcoes,
+  pessoas,
+  escolhido,
+  aoEscolher,
+}: {
+  opcoes: { horario: string; livres: number }[];
+  pessoas: number;
+  escolhido: string | null;
+  aoEscolher: (h: string) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label="Horário de chegada" className="grid grid-cols-3 gap-2.5">
+      {opcoes.map(({ horario, livres }) => {
+        const cabe = livres >= pessoas;
+        const marcado = escolhido === horario;
+        return (
+          <button
+            key={horario}
+            type="button"
+            role="radio"
+            aria-checked={marcado}
+            disabled={!cabe}
+            onClick={() => aoEscolher(horario)}
+            className="flex flex-col items-center justify-center py-3 border disabled:cursor-not-allowed"
+            style={{
+              borderRadius: "12px",
+              borderColor: marcado ? "var(--color-primary)" : "var(--color-border-field)",
+              background: marcado ? "var(--color-primary)" : cabe ? "var(--color-surface)" : "var(--color-bg)",
+              color: marcado ? "#fff" : cabe ? "var(--color-dark)" : "var(--color-text-muted)",
+            }}
+          >
+            <span className="text-[17px] font-semibold tabular-nums" style={!cabe ? { textDecoration: "line-through" } : undefined}>{horaBonita(horario)}</span>
+            <span className="text-[11.5px] mt-0.5">{cabe ? (marcado ? "escolhido" : "disponível") : "lotado"}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

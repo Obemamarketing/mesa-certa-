@@ -193,7 +193,7 @@ export function clientesParaPlanilha(reservas: Reserva[], hojeIso: string): Clie
 
 export function csvDeClientes(reservas: Reserva[], hojeIso: string): string {
   return montarCsv(
-    ["Nome", "Telefone", "E-mail", "Aniversário", "Noites reservadas", "Compareceu", "Não compareceu", "Cancelou", "Primeira reserva", "Última visita", "Próxima reserva"],
+    ["Nome", "Telefone", "E-mail", "Aniversário", "Dias reservados", "Compareceu", "Não compareceu", "Cancelou", "Primeira reserva", "Última visita", "Próxima reserva"],
     clientesParaPlanilha(reservas, hojeIso).map((c) => [
       c.nome,
       c.telefone,

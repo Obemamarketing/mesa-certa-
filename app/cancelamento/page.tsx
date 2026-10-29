@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { empresa } from "@/lib/empresa";
-import { HORARIO_FIXO, TOLERANCIA_MINUTOS, horaLimiteDaTolerancia } from "@/lib/regras";
+import { TOLERANCIA_MINUTOS } from "@/lib/regras";
 import PaginaLegal from "../PaginaLegal";
 import { Dado } from "../RodapeLegal";
 
@@ -10,7 +10,6 @@ export const metadata: Metadata = {
   description: `Como cancelar uma reserva no ${empresa.nomeFantasia} e o que acontece com pagamentos.`,
 };
 
-const hora = (h: string) => h.replace(":", "h");
 
 export default function CancelamentoPage() {
   return (
@@ -38,8 +37,8 @@ export default function CancelamentoPage() {
 
       <h2>3. Atraso e falta</h2>
       <p>
-        Há {TOLERANCIA_MINUTOS} minutos de tolerância depois das {hora(HORARIO_FIXO)}. Quem não chega até as{" "}
-        {hora(horaLimiteDaTolerancia(HORARIO_FIXO))} pode ter a mesa liberada. Não há cobrança por falta.
+        Há {TOLERANCIA_MINUTOS} minutos de tolerância depois do horário escolhido na reserva. Quem não chega até lá pode ter a mesa liberada. Não
+        há cobrança por falta.
       </p>
 
       <h2>4. Se o restaurante precisar cancelar</h2>

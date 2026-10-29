@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import {
+  ATENDIMENTO,
   DIAS,
-  HORARIO_FIXO,
-  TOLERANCIA_MINUTOS,
+  DIAS_ABERTOS,
+  HORARIOS,
+  horaBonita,
+  reservaDaMesa,
   cancelarReserva,
   dataDeOperacao,
   desfazerCheckin,
@@ -35,15 +38,15 @@ export default function ModoOperacaoPage() {
   const relogio = agora ? relogioSaoPaulo(agora) : null;
   const hojeDaSemana = relogio ? DIAS.find((d) => d.diaSemana === relogio.diaSemana)?.chave : undefined;
   const [diaEscolhido, setDiaEscolhido] = useState<DiaReserva | null>(null);
-  const dia: DiaReserva = diaEscolhido ?? hojeDaSemana ?? "sexta";
+  const dia: DiaReserva = diaEscolhido ?? (DIAS_ABERTOS.some((d) => d.chave === hojeDaSemana) ? hojeDaSemana : undefined) ?? DIAS_ABERTOS[0]?.chave ?? "sabado";
   const [mesaFoco, setMesaFoco] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
   const [liberarId, setLiberarId] = useState<string | null>(null);
 
   const minutosAgora = relogio ? relogio.minutos : null;
-  const inicio = minutosDoHorario(HORARIO_FIXO);
-  const fimTolerancia = inicio + TOLERANCIA_MINUTOS;
+  const inicio = minutosDoHorario(HORARIOS[0]);
+  const fim = minutosDoHorario(ATENDIMENTO.fecha);
 
   // A data que a tela mostra: o dia da semana de hoje vale HOJE. Sem olhar a
   // data, a lista misturava as reservas desta sexta com as das sextas futuras.
@@ -78,19 +81,29 @@ export default function ModoOperacaoPage() {
   });
 
   const mesaFocoObj = mesaFoco ? mesas.find((m) => m.numero === mesaFoco) : undefined;
-  const reservaFoco = mesaFoco ? doDia.find((r) => r.mesaNumero === mesaFoco) : undefined;
+  // A planta mostra um horário de cada vez. Hoje, durante o almoço, começa no
+  // horário em andamento; nos outros casos, no primeiro. Quem mexe escolhe outro.
+  const [horarioEscolhido, setHorarioEscolhido] = useState<string | null>(null);
+  const horarioAgora = ehHoje && minutosAgora !== null ? [...HORARIOS].reverse().find((h) => minutosDoHorario(h) <= minutosAgora) : undefined;
+  const horarioPlanta = horarioEscolhido ?? horarioAgora ?? HORARIOS[0];
+  const reservaFoco = mesaFoco ? reservaDaMesa(doDia, dia, horarioPlanta, mesaFoco, dataOperacao) : undefined;
 
   // contador da tolerância — só sinaliza, nunca cancela sozinho
   // (só vale para o dia de hoje: nas abas de outros dias a contagem seria mentira)
+  // Com vários horários, a faixa conta as reservas: quantas estão na
+  // tolerância e quantas já passaram dela sem chegar.
   let faixa: { texto: string; tom: "neutro" | "alerta" | "perigo" | "ok" } = { texto: "", tom: "neutro" };
   if (!ehHoje) {
     faixa = { texto: `Reservas de ${formatarDataCurta(dataDeOperacao(dia))}`, tom: "neutro" };
   } else if (minutosAgora !== null) {
-    if (minutosAgora < inicio) faixa = { texto: `Faltam ${inicio - minutosAgora} min para as ${HORARIO_FIXO.replace(":", "h")}`, tom: "neutro" };
-    else if (minutosAgora <= fimTolerancia) {
-      const restam = fimTolerancia - minutosAgora;
-      faixa = { texto: `Dentro da tolerância — restam ${restam} min`, tom: restam <= 5 ? "perigo" : "alerta" };
-    } else faixa = { texto: "Tolerância encerrada — decida sobre as mesas sem check-in", tom: "perigo" };
+    const atrasadas = pendentes.filter((r) => statusChegada(r, minutosAgora) === "atrasado").length;
+    const naTolerancia = pendentes.filter((r) => statusChegada(r, minutosAgora) === "tolerancia").length;
+    const s = (n: number) => (n === 1 ? "" : "s");
+    if (atrasadas > 0) faixa = { texto: `${atrasadas} reserva${s(atrasadas)} passou da tolerância — decida sobre a mesa`, tom: "perigo" };
+    else if (naTolerancia > 0) faixa = { texto: `${naTolerancia} reserva${s(naTolerancia)} dentro da tolerância`, tom: "alerta" };
+    else if (minutosAgora < inicio) faixa = { texto: `Faltam ${inicio - minutosAgora} min para as primeiras reservas (${horaBonita(HORARIOS[0])})`, tom: "neutro" };
+    else if (minutosAgora < fim) faixa = { texto: "Almoço em andamento", tom: "ok" };
+    else faixa = { texto: "Almoço encerrado", tom: "neutro" };
   }
   const corFaixa = {
     neutro: { bg: "var(--color-surface)", cor: "var(--color-text-muted)", borda: "var(--color-border)" },
@@ -112,13 +125,13 @@ export default function ModoOperacaoPage() {
               <span className="text-[56px] font-bold leading-none tabular-nums" style={{ color: "var(--color-dark)" }}>
                 {agora ? agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : "--:--"}
               </span>
-              <span className="text-[15px]" style={{ color: "var(--color-text-muted)" }}>reservas às {HORARIO_FIXO}</span>
+              <span className="text-[15px]" style={{ color: "var(--color-text-muted)" }}>almoço, {horaBonita(ATENDIMENTO.abre)} às {horaBonita(ATENDIMENTO.fecha)}</span>
             </div>
           </div>
 
           <div className="flex flex-col items-start md:items-end gap-2">
             <div className="flex gap-1.5">
-              {DIAS.map((d) => (
+              {DIAS_ABERTOS.map((d) => (
                 <button
                   key={d.chave}
                   onClick={() => { setDiaEscolhido(d.chave); setMesaFoco(null); }}
@@ -226,7 +239,7 @@ export default function ModoOperacaoPage() {
           {/* PLANTA */}
           <section className="border p-4 flex flex-col gap-3" style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}>
             <div className="flex items-center justify-between">
-              <p className="font-display text-xl">Planta das mesas</p>
+              <p className="font-display text-xl">Planta das mesas · {horaBonita(horarioPlanta)}</p>
               <button
                 onClick={() => setModalAberto(true)}
                 className="text-[13px] font-semibold px-4 py-2 text-white"
@@ -237,11 +250,31 @@ export default function ModoOperacaoPage() {
             </div>
             <div className="grid grid-cols-1 2xl:grid-cols-[1fr_260px] gap-4 items-start">
               <div className="flex flex-col gap-3 w-full">
+                <div className="flex gap-1.5 flex-wrap" role="radiogroup" aria-label="Horário da planta">
+                  {HORARIOS.map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      role="radio"
+                      aria-checked={horarioPlanta === h}
+                      onClick={() => setHorarioEscolhido(h)}
+                      className="px-3 py-1.5 text-[12.5px] font-semibold border tabular-nums"
+                      style={{
+                        borderRadius: "999px",
+                        borderColor: horarioPlanta === h ? "var(--color-primary)" : "var(--color-border-field)",
+                        background: horarioPlanta === h ? "var(--color-primary)" : "var(--color-surface)",
+                        color: horarioPlanta === h ? "#fff" : "var(--color-dark)",
+                      }}
+                    >
+                      {horaBonita(h)}
+                    </button>
+                  ))}
+                </div>
                 <PlantaRestaurante
                   reservas={reservas}
                   dia={dia}
                   data={dataOperacao}
-                  horario={HORARIO_FIXO}
+                  horario={horarioPlanta}
                   mesaSelecionada={mesaFoco}
                   mesas={mesas}
                   aoSelecionar={(n) => setMesaFoco((atual) => (atual === n ? null : n))}
@@ -254,7 +287,7 @@ export default function ModoOperacaoPage() {
                   <DetalheMesaConteudo
                     mesaFocoObj={mesaFocoObj}
                     reservaFoco={reservaFoco}
-                    horarioPlanta={HORARIO_FIXO}
+                    horarioPlanta={horarioPlanta}
                     minutosAgora={minutosAgora}
                     onCancelar={() => cancelarReserva(reservaFoco!.id)}
                     onNovaReserva={() => setModalAberto(true)}

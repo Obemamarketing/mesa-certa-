@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import {
-  HORARIO_FIXO,
+  HORARIOS,
+  horaBonita,
   datasParaReserva,
   diaDaData,
   relogioSaoPaulo,
@@ -44,8 +45,8 @@ export default function NewReservationModal({
 
   const [dataEscolhida, setDataEscolhida] = useState<string | null>(dataInicial && datas.some((d) => d.iso === dataInicial) ? dataInicial : null);
   const data = dataEscolhida ?? primeiraAberta;
-  const dia = diaDaData(data) ?? "sexta";
-  const horario = HORARIO_FIXO;
+  const dia = diaDaData(data) ?? "sabado";
+  const [horario, setHorario] = useState<string>(HORARIOS[0]);
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [pessoas, setPessoas] = useState(inicial?.pessoas ?? 2);
   const [mesaNumero, setMesaNumero] = useState<string | null>(null);
@@ -183,10 +184,18 @@ export default function NewReservationModal({
 
         <div className="grid grid-cols-2 gap-3 items-end">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Horário</label>
-            <div className="border px-3 py-2 text-sm" style={{ ...estiloCampo, color: "var(--color-text-muted)" }}>
-              {horario} <span className="text-xs">(fixo)</span>
-            </div>
+            <label htmlFor="nova-reserva-horario" className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Horário</label>
+            <select
+              id="nova-reserva-horario"
+              value={horario}
+              onChange={(e) => { setHorario(e.target.value); setMesaNumero(null); }}
+              className="border px-3 py-2 text-sm bg-transparent"
+              style={estiloCampo}
+            >
+              {HORARIOS.map((h) => (
+                <option key={h} value={h}>{horaBonita(h)}</option>
+              ))}
+            </select>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>Pessoas</label>

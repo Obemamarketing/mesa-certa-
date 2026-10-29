@@ -1,7 +1,7 @@
 "use client";
 
 // Movimento do restaurante: quantas mesas foram reservadas, quantas pessoas
-// vieram, noite a noite e semana contra semana. Os cálculos moram em
+// vieram, dia a dia e semana contra semana. Os cálculos moram em
 // lib/movimento.ts; aqui só se desenha.
 
 import { useMemo, useState } from "react";
@@ -115,7 +115,7 @@ export default function MovimentoPage() {
         valor,
         rotulo: curta(data),
         tipo: tipoDaSemana(s.segunda),
-        dica: `${NOME_DIA[dow]} ${curta(data)} — ${valor === null ? "a noite ainda não aconteceu" : `${numero(valor)} ${info.unidade}`}`,
+        dica: `${NOME_DIA[dow]} ${curta(data)} — ${valor === null ? "o dia ainda não aconteceu" : `${numero(valor)} ${info.unidade}`}`,
       };
     }),
   }));
@@ -180,7 +180,7 @@ export default function MovimentoPage() {
         <div>
           <h1 className="font-display text-[40px] leading-tight">Movimento</h1>
           <p className="text-sm mt-1 max-w-xl" style={{ color: "var(--color-text-muted)" }}>
-            Quantas mesas foram reservadas e quantas pessoas vieram, noite a noite e semana contra semana.
+            Quantas mesas foram reservadas e quantas pessoas vieram, dia a dia e semana contra semana.
           </p>
         </div>
 
@@ -233,7 +233,7 @@ export default function MovimentoPage() {
               rotulo="Pessoas que vieram"
               valor={numero(d.atual.chegaram)}
               variacao={variacao(d.atual.chegaram, d.anterior.chegaram)}
-              rodape={d.atual.noites > 0 ? `${numero(Math.round(d.atual.chegaram / d.atual.noites))} por noite, em média` : "Sem noites ainda"}
+              rodape={d.atual.noites > 0 ? `${numero(Math.round(d.atual.chegaram / d.atual.noites))} por dia, em média` : "Sem dias ainda"}
             />
             <Indicador
               rotulo="Pessoas reservadas"
@@ -248,7 +248,7 @@ export default function MovimentoPage() {
               rodape={
                 totalDeMesas > 0 && d.atual.noites > 0
                   ? `Ocupação média de ${pct(mediaDeMesasPorNoite / totalDeMesas)} das ${totalDeMesas} mesas`
-                  : "Sem noites ainda"
+                  : "Sem dias ainda"
               }
             />
             <Indicador
@@ -357,7 +357,7 @@ export default function MovimentoPage() {
           <section style={cartao}>
             <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 className="font-display text-[22px] leading-tight">Noite a noite</h2>
+                <h2 className="font-display text-[22px] leading-tight">Dia a dia</h2>
                 <p className="text-[13px] mt-1" style={{ color: "var(--color-text-muted)" }}>
                   A última coluna compara {info.rotulo.toLowerCase()} com o mesmo dia da semana anterior.
                 </p>
@@ -366,7 +366,7 @@ export default function MovimentoPage() {
                 type="button"
                 onClick={baixarPlanilha}
                 disabled={linhasDia.length === 0}
-                title="Baixa as noites deste período em um arquivo que abre no Excel e no Google Planilhas"
+                title="Baixa os dias deste período em um arquivo que abre no Excel e no Google Planilhas"
                 className="flex items-center gap-2 px-4 py-2.5 text-[13.5px] font-semibold border disabled:opacity-40"
                 style={{ borderColor: "var(--color-primary)", color: "var(--color-primary)", borderRadius: "var(--radius-sm)", background: "var(--color-surface)" }}
               >
@@ -380,7 +380,7 @@ export default function MovimentoPage() {
               <table className="w-full text-[13.5px] tabular-nums" style={{ minWidth: 760 }}>
                 <thead>
                   <tr style={{ color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)", borderBottom: "1px solid var(--color-border)" }}>
-                    <Th esquerda>Noite</Th>
+                    <Th esquerda>Dia</Th>
                     <Th>Mesas</Th>
                     <Th>Pessoas reservadas</Th>
                     <Th>Vieram</Th>

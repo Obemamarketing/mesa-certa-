@@ -5,7 +5,9 @@ import { reservaBrand } from "@/lib/reservaBrand";
 import {
   ANTECEDENCIA_DIAS,
   DIAS,
-  HORARIO_FIXO,
+  HORARIOS,
+  horaBonita,
+  reservaDaMesa,
   cancelarReserva,
   dataDaReserva,
   dataHoje,
@@ -60,7 +62,7 @@ export default function ReservasAdminPage() {
   const [indiceData, setIndiceData] = useState(0);
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [painelMobile, setPainelMobile] = useState<"planta" | "reservas" | "lista">("planta");
-  const [horarioPlanta, setHorarioPlanta] = useState(HORARIO_FIXO);
+  const [horarioPlanta, setHorarioPlanta] = useState<string>(HORARIOS[0]);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"dia" | "todos">("dia");
   const [modalAberto, setModalAberto] = useState(false);
@@ -148,8 +150,7 @@ export default function ReservasAdminPage() {
   const reservaFoco = reservaFocoId
     ? reservas.find((r) => r.id === reservaFocoId && !r.cancelada)
     : mesaFoco
-    ? reservasDoDia.find((r) => r.mesaNumero === mesaFoco && r.horario === horarioPlanta) ??
-      reservasDoDia.find((r) => r.mesaNumero === mesaFoco)
+    ? reservaDaMesa(reservasDoDia, diaAtivo.chave, horarioPlanta, mesaFoco, dataAtiva)
     : undefined;
 
   function focarReserva(r: Reserva) {
@@ -381,9 +382,17 @@ export default function ReservasAdminPage() {
           >
             <div className="flex items-center justify-between gap-2">
               <p className="font-display text-lg whitespace-nowrap">Planta de mesas</p>
-              <span className="text-xs font-medium px-2.5 py-1.5 shrink-0" style={{ color: "var(--color-text-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)" }}>
-                {horarioPlanta} · fixo
-              </span>
+              <select
+                aria-label="Horário da planta"
+                value={horarioPlanta}
+                onChange={(e) => { setHorarioPlanta(e.target.value); setReservaFocoId(null); }}
+                className="text-xs font-semibold px-2.5 py-1.5 shrink-0 bg-transparent"
+                style={{ color: "var(--color-dark)", border: "1px solid var(--color-border-field)", borderRadius: "var(--radius-sm)" }}
+              >
+                {HORARIOS.map((h) => (
+                  <option key={h} value={h}>{horaBonita(h)}</option>
+                ))}
+              </select>
             </div>
 
             {/* planta em cima, detalhe da mesa embaixo: empilhar deixa a planta usar a largura toda */}

@@ -6,7 +6,7 @@
 
 import { useMemo, useState } from "react";
 import { reservaBrand } from "@/lib/reservaBrand";
-import { HORARIO_FIXO, diaDaData, lugaresLivres, rotuloDaData, useReservas } from "@/lib/reservas";
+import { diaDaData, lugaresLivresNoDia, rotuloDaData, useReservas } from "@/lib/reservas";
 import { useMesasConfig } from "@/lib/mesas";
 import { linkWhatsapp } from "@/lib/whatsapp";
 import {
@@ -111,8 +111,9 @@ export default function FilaPage() {
           porData.map(([data, lista]) => {
             const visiveis = lista.filter((e) => verEncerradas || e.status === "aguardando" || e.status === "chamado");
             if (visiveis.length === 0) return null;
-            const dia = diaDaData(data) ?? "sexta";
-            const livres = lugaresLivres(mesas, reservas, dia, HORARIO_FIXO, data);
+            const dia = diaDaData(data) ?? "sabado";
+            // lugares livres no horário com mais espaço do dia
+            const livres = lugaresLivresNoDia(mesas, reservas, dia, data);
             let posicao = 0;
             return (
               <section key={data} style={cartao} aria-label={`Fila de ${rotuloDaData(data)}`}>
@@ -122,7 +123,7 @@ export default function FilaPage() {
                     className="text-[12.5px] font-semibold px-3 py-1 rounded-full"
                     style={livres > 0 ? { background: "var(--color-accent-soft)", color: "var(--color-accent-dark)" } : { background: "var(--color-border)", color: "var(--color-text-muted)" }}
                   >
-                    {livres > 0 ? `${livres} lugares livres agora` : "Lotado"}
+                    {livres > 0 ? `até ${livres} lugares livres em algum horário` : "Lotado"}
                   </span>
                 </div>
                 <ul className="flex flex-col">

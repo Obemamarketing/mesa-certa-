@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { empresa, fornecedorDoSistema, razaoECnpj } from "@/lib/empresa";
 import { reservaBrand } from "@/lib/reservaBrand";
-import { HORARIO_FIXO, TOLERANCIA_MINUTOS, horaLimiteDaTolerancia } from "@/lib/regras";
+import { ATENDIMENTO, DURACAO_RESERVA_MINUTOS, HORARIOS, TOLERANCIA_MINUTOS, horaBonita } from "@/lib/regras";
 import PaginaLegal from "../PaginaLegal";
 import { Dado } from "../RodapeLegal";
 
@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   description: `Regras para reservar mesa no ${empresa.nomeFantasia} pelo site.`,
 };
 
-const hora = (h: string) => h.replace(":", "h");
 
 export default function TermosPage() {
   const n = empresa.nomeFantasia;
@@ -36,12 +35,17 @@ export default function TermosPage() {
       <h2>3. Como funciona a reserva</h2>
       <ul>
         <li>
-          O restaurante recebe reservas em: {reservaBrand.diasFuncionamento.toLowerCase()}, sempre às {hora(HORARIO_FIXO)}. A agenda abre até dois
-          meses à frente.
+          O restaurante recebe reservas: {reservaBrand.diasFuncionamento.toLowerCase()}, das {horaBonita(ATENDIMENTO.abre)} às{" "}
+          {horaBonita(ATENDIMENTO.fecha)}. Você escolhe o horário de chegada ({HORARIOS.map(horaBonita).join(", ")}). A agenda abre até dois meses à
+          frente.
         </li>
         <li>
-          A reserva fica confirmada na hora, na tela. Há {TOLERANCIA_MINUTOS} minutos de tolerância: chegue até as{" "}
-          {hora(horaLimiteDaTolerancia(HORARIO_FIXO))}. Depois disso, a mesa pode ser liberada para outras pessoas.
+          A reserva fica confirmada na hora, na tela. Há {TOLERANCIA_MINUTOS} minutos de tolerância depois do horário escolhido. Depois disso, a
+          mesa pode ser liberada para outras pessoas.
+        </li>
+        <li>
+          A mesa fica reservada para você por até {DURACAO_RESERVA_MINUTOS} minutos a partir do horário
+          escolhido.
         </li>
         <li>Grupos maiores que uma mesa reservam mais de uma; o site soma os lugares.</li>
         <li>

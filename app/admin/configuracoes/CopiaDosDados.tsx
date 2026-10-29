@@ -20,7 +20,7 @@ const PLANILHAS: { tipo: TipoDePlanilha; titulo: string; descricao: string }[] =
   {
     tipo: "movimento",
     titulo: "Movimento",
-    descricao: "Uma noite por linha: mesas reservadas, pessoas que vieram, faltas, cancelamentos e ocupação.",
+    descricao: "Um dia de funcionamento por linha: mesas reservadas, pessoas que vieram, faltas, cancelamentos e ocupação.",
   },
 ];
 

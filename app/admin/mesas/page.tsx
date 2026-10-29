@@ -11,7 +11,7 @@
 // Só desktop por enquanto — no celular a tela avisa e mostra a lista.
 
 import { useMemo, useState } from "react";
-import { HORARIO_FIXO, DIAS, useReservas, type DiaReserva } from "@/lib/reservas";
+import { DIAS_ABERTOS, HORARIOS, horaBonita, useReservas, type DiaReserva } from "@/lib/reservas";
 import { renomearMesa, salvarPosicoes, useMesasConfig, type MesaConfig } from "@/lib/mesas";
 import PlantaRestaurante, { LegendaPlanta } from "../../PlantaRestaurante";
 import { MesaMiniatura } from "../../MesaDesenho";
@@ -29,7 +29,8 @@ export default function MesasPage() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [dia, setDia] = useState<DiaReserva>("sexta");
+  const [dia, setDia] = useState<DiaReserva>(DIAS_ABERTOS[0]?.chave ?? "sabado");
+  const [horario, setHorario] = useState<string>(HORARIOS[0]);
 
   const lista = editando ? rascunho : mesas;
   // Se a mesa selecionada deixou de existir (renomeada em outra tela), o
@@ -162,10 +163,21 @@ export default function MesasPage() {
                 className="border text-sm px-3 py-2.5 bg-transparent"
                 style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}
               >
-                {DIAS.map((d) => (
+                {DIAS_ABERTOS.map((d) => (
                   <option key={d.chave} value={d.chave}>
                     {d.label.split("-")[0]}
                   </option>
+                ))}
+              </select>
+              <select
+                aria-label="Horário"
+                value={horario}
+                onChange={(e) => setHorario(e.target.value)}
+                className="border text-sm px-3 py-2.5 bg-transparent"
+                style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)" }}
+              >
+                {HORARIOS.map((h) => (
+                  <option key={h} value={h}>{horaBonita(h)}</option>
                 ))}
               </select>
               <button
@@ -244,7 +256,7 @@ export default function MesasPage() {
           <PlantaRestaurante
             reservas={reservas}
             dia={dia}
-            horario={HORARIO_FIXO}
+            horario={horario}
             mesaSelecionada={selecionada}
             mesas={lista}
             aoSelecionar={selecionar}

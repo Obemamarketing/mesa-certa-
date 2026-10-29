@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { reservaBrand } from "@/lib/reservaBrand";
-import { HORARIO_FIXO, TOLERANCIA_MINUTOS, horaLimiteDaTolerancia } from "@/lib/regras";
+import { ATENDIMENTO, TOLERANCIA_MINUTOS, horaBonita } from "@/lib/regras";
 
 export default function MenuMobile({
   aberto,
@@ -128,11 +128,8 @@ export default function MenuMobile({
             </button>
             {regrasAbertas && (
               <ul className="pb-4 flex flex-col gap-2.5 text-[14px] leading-snug" style={{ color: "var(--color-text-muted)" }}>
-                <li>• As reservas são feitas só para as {HORARIO_FIXO.replace(":", "h")}.</li>
-                <li>
-                  • Há {TOLERANCIA_MINUTOS} minutos de tolerância: chegue até as {horaLimiteDaTolerancia(HORARIO_FIXO).replace(":", "h")} para
-                  garantir a mesa.
-                </li>
+                <li>• Reservas para o almoço de sábado: você escolhe o horário de chegada, entre {horaBonita(ATENDIMENTO.abre)} e {horaBonita(ATENDIMENTO.fecha)}.</li>
+                <li>• Há {TOLERANCIA_MINUTOS} minutos de tolerância depois do horário escolhido para garantir a mesa.</li>
                 <li>• Grupo maior que a maior mesa reserva mais de uma mesa; o sistema soma os lugares para você.</li>
                 <li>• Para ver ou cancelar, use “Consultar minha reserva” com o nome da reserva.</li>
               </ul>
@@ -148,7 +145,7 @@ export default function MenuMobile({
             {reservaBrand.diasFuncionamento}
           </p>
           <p className="text-[13px] mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-            Reservas às {HORARIO_FIXO.replace(":", "h")}
+            Das {horaBonita(ATENDIMENTO.abre)} às {horaBonita(ATENDIMENTO.fecha)}
           </p>
           <p className="text-[13px] mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
             <Link href="/privacidade" onClick={aoFechar} className="underline underline-offset-4" style={{ color: "var(--color-dark)" }}>Privacidade</Link>

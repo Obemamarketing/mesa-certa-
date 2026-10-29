@@ -17,7 +17,7 @@ export type TipoDePlanilha = "clientes" | "reservas" | "movimento";
 const O_QUE: Record<TipoDePlanilha, { um: string; varios: string; vazio: string }> = {
   clientes: { um: "cliente", varios: "clientes", vazio: "Ainda não há clientes para baixar." },
   reservas: { um: "reserva", varios: "reservas", vazio: "Ainda não há reservas para baixar." },
-  movimento: { um: "noite", varios: "noites", vazio: "Ainda não há movimento para baixar." },
+  movimento: { um: "dia", varios: "dias", vazio: "Ainda não há movimento para baixar." },
 };
 
 export default function BotaoPlanilha({

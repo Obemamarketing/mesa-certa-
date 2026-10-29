@@ -1,4 +1,4 @@
-// Regras puras do ZéPelin, sem dependência de navegador nem de Supabase.
+// Regras puras do restaurante, sem dependência de navegador nem de Supabase.
 // Ficam aqui (sem "use client") pra poderem ser usadas também no backend
 // — por exemplo na rota que envia os lembretes. lib/reservas.ts reexporta
 // tudo, então o resto do app continua importando de lá como sempre.
@@ -64,8 +64,25 @@ export const POSICOES_PADRAO: Record<string, { x: number; y: number }> = {
   "20": { x: 51.89, y: 17.35 },
 };
 
-// O ZéPelin só recebe reservas às 19h30 — não há seletor de horário na interface.
-export const HORARIO_FIXO = "19:30";
+// ---------------------------------------------------------------------------
+// Funcionamento: dias, horários e quanto tempo a mesa fica presa
+// ---------------------------------------------------------------------------
+// ZéPelin (piloto): só SÁBADO, no ALMOÇO, das 12h às 15h. Na reforma para
+// vários restaurantes, isto vira a configuração de cada restaurante.
+// O banco confere as mesmas regras (tabela "funcionamento",
+// supabase-migration-almoco.sql): se mudar aqui, mude lá também.
+
+/** Dias da semana em que dá para reservar (0 = domingo … 6 = sábado). */
+export const DIAS_DA_SEMANA_ABERTOS: readonly number[] = [6];
+
+/** Horários que o cliente pode escolher. */
+export const HORARIOS: readonly string[] = ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30"];
+
+/** Horário de atendimento, para os textos ("das 12h às 15h"). */
+export const ATENDIMENTO = { abre: "12:00", fecha: "15:00" } as const;
+
+/** Quanto tempo uma reserva segura a mesa: a das 12h prende a mesa até as 13h30. */
+export const DURACAO_RESERVA_MINUTOS = 90;
 
 // Tolerância de chegada após o horário da reserva.
 export const TOLERANCIA_MINUTOS = 20;
@@ -83,7 +100,19 @@ export function minutosDoHorario(horario: string): number {
   return hh * 60 + mm;
 }
 
-// "19:30" + tolerância → "19:50"
+// Duas reservas na mesma mesa se atrapalham se começam a menos de
+// DURACAO_RESERVA_MINUTOS uma da outra (12h e 13h sim; 12h e 13h30 não).
+export function horariosSeCruzam(a: string, b: string): boolean {
+  return Math.abs(minutosDoHorario(a) - minutosDoHorario(b)) < DURACAO_RESERVA_MINUTOS;
+}
+
+// "12:00" → "12h"; "12:30" → "12h30"
+export function horaBonita(horario: string): string {
+  const [hh, mm] = horario.split(":");
+  return mm === "00" ? `${Number(hh)}h` : `${Number(hh)}h${mm}`;
+}
+
+// "12:00" + tolerância → "12:20"
 export function horaLimiteDaTolerancia(horario: string): string {
   const total = minutosDoHorario(horario) + TOLERANCIA_MINUTOS;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;

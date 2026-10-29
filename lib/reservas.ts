@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { ANTECEDENCIA_DIAS, HORARIO_FIXO, TOLERANCIA_MINUTOS, mesas, minutosDoHorario, type Mesa } from "./regras";
+import { ANTECEDENCIA_DIAS, DIAS_DA_SEMANA_ABERTOS, HORARIOS, TOLERANCIA_MINUTOS, horariosSeCruzam, mesas, minutosDoHorario, type Mesa } from "./regras";
 import { chaveDoTelefone } from "./validacao";
 
 // QUEM LÊ O QUÊ
@@ -12,7 +12,7 @@ import { chaveDoTelefone } from "./validacao";
 //   necessário e nunca o telefone de ninguém.
 //   Painel (/admin, com login de administrador): lê e altera a tabela direto.
 
-export { ANTECEDENCIA_DIAS, DATAS_NA_LISTA, HORARIO_FIXO, TOLERANCIA_MINUTOS, codigoDaReserva, distribuirPessoas, horaLimiteDaTolerancia, listaDeMesas, lugaresDasMesas, lugaresQueFaltam, mesas, minutosDoHorario, situacaoDoGrupo } from "./regras";
+export { ANTECEDENCIA_DIAS, ATENDIMENTO, DATAS_NA_LISTA, DIAS_DA_SEMANA_ABERTOS, DURACAO_RESERVA_MINUTOS, HORARIOS, TOLERANCIA_MINUTOS, codigoDaReserva, horaBonita, horariosSeCruzam, distribuirPessoas, horaLimiteDaTolerancia, listaDeMesas, lugaresDasMesas, lugaresQueFaltam, mesas, minutosDoHorario, situacaoDoGrupo } from "./regras";
 export type { MesaDoGrupo } from "./regras";
 export type { FormatoMesa, Mesa, ZonaMesa } from "./regras";
 
@@ -62,7 +62,11 @@ export const DIAS: { chave: DiaReserva; label: string; diaSemana: number }[] = [
   { chave: "domingo", label: "Domingo", diaSemana: 0 },
 ];
 
-export const horarios = [HORARIO_FIXO];
+// Os dias em que o restaurante recebe reservas hoje (ZéPelin: só sábado). DIAS
+// continua com os três para dar nome às reservas antigas.
+export const DIAS_ABERTOS = DIAS.filter((d) => DIAS_DA_SEMANA_ABERTOS.includes(d.diaSemana));
+
+export const horarios = HORARIOS;
 
 function proximaData(diaSemanaAlvo: number): Date {
   const base = dataHoje();
@@ -105,7 +109,7 @@ export function dataDoIso(iso: string): Date {
 
 export type DataDisponivel = { iso: string; dia: DiaReserva; data: Date };
 
-// sexta/sábado/domingo de uma data, ou undefined se o restaurante não abre nela
+// sexta/sábado/domingo de uma data (para dar nome; quem diz se abre é DIAS_ABERTOS)
 export function diaDaData(iso: string): DiaReserva | undefined {
   const dow = dataDoIso(iso).getDay();
   return DIAS.find((d) => d.diaSemana === dow)?.chave;
@@ -117,7 +121,7 @@ export function datasDeFuncionamento(deIso: string, quantosDias: number): DataDi
   const base = dataDoIso(deIso);
   for (let i = 0; i <= quantosDias; i++) {
     const data = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-    const dia = DIAS.find((d) => d.diaSemana === data.getDay());
+    const dia = DIAS_ABERTOS.find((d) => d.diaSemana === data.getDay());
     if (dia) lista.push({ iso: isoDaData(data), dia: dia.chave, data });
   }
   return lista;
@@ -501,7 +505,7 @@ export function statusMesa(
   pessoasMin?: number,
   dataIso: string = dataIsoDoDia(dia),
 ): StatusMesa {
-  const reserva = reservas.find((r) => !r.cancelada && reservaNaData(r, dia, dataIso) && r.horario === horario && r.mesaNumero === mesa.numero);
+  const reserva = reservaQueSegura(reservas, dia, horario, mesa.numero, dataIso);
   if (reserva) return reserva.checkinEm ? "ocupada" : "reservada";
   if (pessoasMin && mesa.capacidade < pessoasMin) return "pequena";
   return "livre";
@@ -514,7 +518,24 @@ export function reservaDaMesa(
   mesaNumero: string,
   dataIso: string = dataIsoDoDia(dia),
 ): Reserva | undefined {
-  return reservas.find((r) => !r.cancelada && reservaNaData(r, dia, dataIso) && r.horario === horario && r.mesaNumero === mesaNumero);
+  return reservaQueSegura(reservas, dia, horario, mesaNumero, dataIso);
+}
+
+// A reserva que segura a mesa nesse horário: a do mesmo horário ou uma que
+// começou (ou começa) a menos de DURACAO_RESERVA_MINUTOS dele. Se houver mais
+// de uma, vale a de horário mais próximo.
+function reservaQueSegura<R extends Ocupacao>(reservas: R[], dia: DiaReserva, horario: string, mesaNumero: string, dataIso: string): R | undefined {
+  let melhor: R | undefined;
+  let distancia = Infinity;
+  for (const r of reservas) {
+    if (r.cancelada || r.mesaNumero !== mesaNumero || !reservaNaData(r, dia, dataIso) || !horariosSeCruzam(r.horario, horario)) continue;
+    const d = Math.abs(minutosDoHorario(r.horario) - minutosDoHorario(horario));
+    if (d < distancia) {
+      melhor = r;
+      distancia = d;
+    }
+  }
+  return melhor;
 }
 
 // Tolerância (TOLERANCIA_MINUTOS, em regras.ts): o sistema NUNCA cancela ou
@@ -524,7 +545,7 @@ export type StatusChegada = "aguardando" | "tolerancia" | "atrasado" | "chegou" 
 // minutosAgora: minutos desde 00:00 (no fuso de São Paulo) do horário real
 // atual (null até o relógio montar no cliente, pra evitar mismatch de
 // hidratação). A data da reserva também conta: reserva de outro dia não está
-// "na tolerância" só porque o relógio de hoje passou das 19h30.
+// "na tolerância" só porque o relógio de hoje passou do horário dela.
 export function statusChegada(
   reserva: QuandoDaReserva & Pick<Reserva, "horario" | "cancelada"> & { checkinEm?: number | boolean },
   minutosAgora: number | null,
@@ -563,6 +584,12 @@ export function lugaresLivres(todasAsMesas: Mesa[], reservas: Ocupacao[], dia: D
   return todasAsMesas
     .filter((m) => statusMesa(reservas, dia, horario, m, undefined, dataIso) === "livre")
     .reduce((soma, m) => soma + m.capacidade, 0);
+}
+
+// Quantos lugares livres no MELHOR horário do dia. Se for menos que o grupo,
+// não há nenhum horário com mesa para ele: a data está lotada (fila de espera).
+export function lugaresLivresNoDia(todasAsMesas: Mesa[], reservas: Ocupacao[], dia: DiaReserva, dataIso: string): number {
+  return Math.max(0, ...HORARIOS.map((h) => lugaresLivres(todasAsMesas, reservas, dia, h, dataIso)));
 }
 
 export function mesasDisponiveisPara(reservas: Ocupacao[], dia: DiaReserva, horario: string, pessoas: number): Mesa[] {
