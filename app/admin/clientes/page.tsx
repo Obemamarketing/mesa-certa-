@@ -93,7 +93,7 @@ export default function ClientesPage() {
                       {c.nome.charAt(0).toUpperCase()}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <span className="text-[15px] font-semibold block truncate">{c.nome}</span>
+                      <span className="text-[15px] font-semibold leading-snug block break-words">{c.nome}</span>
                       <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{c.telefone}{c.email ? ` · ${c.email}` : ""}</span>
                       {c.aniversario && (
                         <span className="text-xs block mt-0.5" style={{ color: fazAniversarioNoMes(c.aniversario) ? "var(--color-secondary-dark)" : "var(--color-text-muted)", fontWeight: fazAniversarioNoMes(c.aniversario) ? 600 : 400 }}>

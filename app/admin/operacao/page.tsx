@@ -25,7 +25,7 @@ import {
 import { useAgora } from "@/lib/relogio";
 import PlantaRestaurante, { LegendaPlanta } from "../../PlantaRestaurante";
 import DetalheMesaConteudo from "../DetalheMesa";
-import StatusBadge from "../StatusBadge";
+import StatusBadge, { estiloDoBloco } from "../StatusBadge";
 import NewReservationModal from "../NewReservationModal";
 import { useMesasConfig } from "@/lib/mesas";
 
@@ -162,12 +162,12 @@ export default function ModoOperacaoPage() {
         )}
 
         {/* a planta é o elemento principal da operação: fica com a maior parte */}
-        <div className="grid xl:grid-cols-[minmax(0,470px)_minmax(0,1.35fr)] gap-5 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,470px)_minmax(0,1.35fr)] gap-5 items-start">
           {/* PRÓXIMAS RESERVAS */}
           <section className="border flex flex-col" style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}>
-            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+            <div className="px-4 sm:px-5 py-4 flex items-baseline justify-between flex-wrap gap-x-3 gap-y-1" style={{ borderBottom: "1px solid var(--color-border)" }}>
               <p className="font-display text-xl">Próximas reservas</p>
-              <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+              <span className="text-[13px] whitespace-nowrap" style={{ color: "var(--color-text-muted)" }}>
                 {pendentes.length} aguardando · {chegaram.length} na casa
               </span>
             </div>
@@ -176,73 +176,77 @@ export default function ModoOperacaoPage() {
             ) : lista.length === 0 ? (
               <p className="px-5 py-8 text-sm text-center" style={{ color: "var(--color-text-muted)" }}>Nenhuma reserva para este dia.</p>
             ) : (
-              lista.map((r, i) => {
+              <div className="flex flex-col gap-2 p-2.5 sm:p-3">
+              {lista.map((r) => {
                 const chegada = statusChegada(r, minutosAgora);
                 const focada = mesaFoco === r.mesaNumero;
                 return (
                   <div
                     key={r.id}
-                    className="flex items-center gap-3 px-5 py-3.5 flex-wrap sm:flex-nowrap"
-                    style={{
-                      borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
-                      background: focada ? "var(--color-primary-tint)" : "transparent",
-                      borderLeft: focada ? "3px solid var(--color-primary)" : "3px solid transparent",
-                    }}
+                    className="flex items-center gap-3 pl-3 pr-3 sm:pr-4 py-3"
+                    style={estiloDoBloco(chegada, focada)}
                   >
                     <button onClick={() => setMesaFoco(focada ? null : r.mesaNumero)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                      <span className="text-[18px] font-bold tabular-nums w-14 shrink-0">{r.horario}</span>
+                      <span className="text-[17px] font-bold tabular-nums w-12 shrink-0">{r.horario}</span>
                       <div className="flex-1 min-w-0">
-                        <span className="text-[17px] font-semibold block truncate">{r.nome}</span>
-                        <span className="text-[13px]" style={{ color: "var(--color-text-muted)" }}>
-                          {r.pessoas} pessoa{r.pessoas === 1 ? "" : "s"} · Mesa {r.mesaNumero}
+                        {/* o nome inteiro, quebrando linha se precisar: no celular não pode sumir */}
+                        <span className="text-[16px] font-semibold leading-snug block break-words">{r.nome}</span>
+                        <span className="text-[13px] block" style={{ color: "var(--color-bloco-texto)" }}>
+                          <span className="whitespace-nowrap">{r.pessoas} pessoa{r.pessoas === 1 ? "" : "s"}</span>
+                          {" · "}
+                          <span className="whitespace-nowrap">Mesa {r.mesaNumero}</span>
                         </span>
                         {r.observacao && (
                           <span className="text-[13px] block italic truncate" style={{ color: "var(--color-primary)" }}>“{r.observacao}”</span>
                         )}
                       </div>
                     </button>
-                    <StatusBadge chegada={chegada} />
-                    {r.checkinEm ? (
-                      <button
-                        onClick={() => acao(() => desfazerCheckin(r.id))}
-                        className="text-[12px] font-semibold px-3 py-2 border shrink-0"
-                        style={{ borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-muted)" }}
-                      >
-                        Desfazer
-                      </button>
-                    ) : (
-                      <div className="flex gap-1.5 shrink-0">
+                    {/* situação em cima, botão embaixo: coluna estreita */}
+                    <div className="flex flex-col items-stretch gap-1.5 shrink-0 min-w-[88px]">
+                      <StatusBadge chegada={chegada} compacto />
+                      {r.checkinEm ? (
                         <button
-                          onClick={() => acao(() => fazerCheckin(r.id))}
-                          className="text-[13px] font-semibold px-4 py-2.5 text-white"
-                          style={{ background: "var(--color-accent)", borderRadius: "var(--radius-sm)" }}
+                          onClick={() => acao(() => desfazerCheckin(r.id))}
+                          className="text-[12px] font-semibold px-2 py-1.5 border"
+                          style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-bloco-texto)" }}
                         >
-                          Chegou
+                          Desfazer
                         </button>
-                        {chegada === "atrasado" && (
+                      ) : (
+                        <>
                           <button
-                            onClick={() => liberar(r.id)}
-                            className="text-[13px] font-semibold px-3 py-2.5 text-white"
-                            style={{ background: "var(--color-error)", borderRadius: "var(--radius-sm)" }}
+                            onClick={() => acao(() => fazerCheckin(r.id))}
+                            className="text-[13px] font-semibold px-2 py-2 text-white"
+                            style={{ background: "var(--color-accent)", borderRadius: "var(--radius-sm)" }}
                           >
-                            {liberarId === r.id ? "Confirmar?" : "Liberar"}
+                            Chegou
                           </button>
-                        )}
-                      </div>
-                    )}
+                          {chegada === "atrasado" && (
+                            <button
+                              onClick={() => liberar(r.id)}
+                              className="text-[13px] font-semibold px-2 py-2 text-white"
+                              style={{ background: "var(--color-error)", borderRadius: "var(--radius-sm)" }}
+                            >
+                              {liberarId === r.id ? "Confirmar?" : "Liberar"}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
-              })
+              })}
+              </div>
             )}
           </section>
 
           {/* PLANTA */}
           <section className="border p-4 flex flex-col gap-3" style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}>
-            <div className="flex items-center justify-between">
-              <p className="font-display text-xl">Planta das mesas · {horaBonita(horarioPlanta)}</p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="font-display text-lg sm:text-xl">Planta das mesas · {horaBonita(horarioPlanta)}</p>
               <button
                 onClick={() => setModalAberto(true)}
-                className="text-[13px] font-semibold px-4 py-2 text-white"
+                className="text-[13px] font-semibold px-4 py-2 text-white whitespace-nowrap"
                 style={{ background: "var(--color-primary)", borderRadius: "var(--radius-sm)" }}
               >
                 + Nova reserva

@@ -25,6 +25,12 @@
 
   --color-sand: color-mix(in srgb, var(--color-dark) 10%, white);
 
+  /* bloquinho de cada reserva nas listas do painel: areia um pouco mais
+     escura que o cartão, e o texto secundário dentro dele um pouco mais
+     escuro também (contraste acima de 4,5:1) */
+  --color-bloco: color-mix(in srgb, var(--color-dark) 6%, var(--color-bg));
+  --color-bloco-texto: color-mix(in srgb, var(--color-text-muted) 75%, var(--color-dark));
+
   /* borda das caixas de formulário: contraste 3:1 com o fundo (acessibilidade) */
   --color-border-field: #968A7F;
 

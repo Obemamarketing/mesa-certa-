@@ -264,7 +264,7 @@ export default function CalendarioPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 items-start xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-6 items-start xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* ---------- calendário ---------- */}
         <div className="flex flex-col gap-4">
           {visao === "ano" ? (

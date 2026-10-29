@@ -32,7 +32,7 @@ import SeletorDeData from "../SeletorDeData";
 import { useMesasConfig } from "@/lib/mesas";
 import DetalheMesaConteudo from "./DetalheMesa";
 import StatCard from "./StatCard";
-import StatusBadge from "./StatusBadge";
+import StatusBadge, { estiloDoBloco, statusDaReserva } from "./StatusBadge";
 import NewReservationModal from "./NewReservationModal";
 import BotaoPlanilha from "./BotaoPlanilha";
 import Link from "next/link";
@@ -323,9 +323,9 @@ export default function ReservasAdminPage() {
 
         {/* LISTA + PLANTA */}
         {/* a planta agora é a deitada, larga: precisa de mais espaço que a antiga */}
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-5 items-start">
           <section
-            className={`${painelMobile === "lista" ? "flex" : "hidden lg:flex"} flex-col border`}
+            className={`${painelMobile === "lista" ? "flex" : "hidden lg:flex"} @container flex-col border`}
             style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", borderRadius: "var(--radius-md)" }}
           >
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
@@ -336,13 +336,13 @@ export default function ReservasAdminPage() {
             </div>
 
             {reservasOrdenadas.length > 0 && (
-              <div className="hidden sm:flex items-center gap-3 px-5 py-2 text-[12px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>
+              <div className="hidden @min-[640px]:flex items-center gap-3 pl-[29px] pr-7 py-2 text-[12px] font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>
                 <button onClick={() => alternarOrdenacao("horario")} className="flex items-center gap-1 w-12 shrink-0">Horário {ICONE_ORDENAR}</button>
-                <span className="flex-1 min-w-[140px]">Cliente</span>
+                <span className="flex-1 min-w-0">Cliente</span>
                 <button onClick={() => alternarOrdenacao("pessoas")} className="flex items-center gap-1 w-20 shrink-0">Pessoas {ICONE_ORDENAR}</button>
                 <span className="w-20 shrink-0">Mesa</span>
-                <span className="w-24 shrink-0">Status</span>
-                <span className="w-5 shrink-0" />
+                <span className="w-28 shrink-0">Status</span>
+                <span className="w-4 shrink-0" />
               </div>
             )}
 
@@ -353,12 +353,11 @@ export default function ReservasAdminPage() {
               {filtro === "dia" ? "Nenhuma reserva ainda pra esse dia." : "Nenhuma reserva encontrada."}
             </p>
             ) : (
-              <div className="flex flex-col">
-                {reservasOrdenadas.map((r, i) => (
+              <div className="flex flex-col gap-2 p-2.5 sm:p-3">
+                {reservasOrdenadas.map((r) => (
                   <LinhaReserva
                     key={r.id}
                     reserva={r}
-                    comBorda={i > 0}
                     focada={r.id === reservaFocoId}
                     minutosAgora={minutosAgora}
                     mostrarData={filtro === "todos"}
@@ -469,7 +468,7 @@ export default function ReservasAdminPage() {
                     {c.nome.charAt(0).toUpperCase()}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[15px] font-semibold block truncate">{c.nome}</span>
+                    <span className="text-[15px] font-semibold leading-snug block break-words">{c.nome}</span>
                     <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{c.telefone}</span>
                   </div>
                   <span className="text-xs font-semibold shrink-0" style={{ color: "var(--color-text-muted)" }}>{c.totalReservas} reserva{c.totalReservas === 1 ? "" : "s"}</span>
@@ -485,41 +484,43 @@ export default function ReservasAdminPage() {
 
 function LinhaReserva({
   reserva,
-  comBorda,
   focada,
   minutosAgora,
   mostrarData,
   onFocar,
 }: {
   reserva: Reserva;
-  comBorda: boolean;
   focada: boolean;
   minutosAgora: number | null;
   /** Na lista de várias datas, cada linha diz de qual dia ela é. */
   mostrarData: boolean;
   onFocar: () => void;
 }) {
+  const chegada = statusChegada(reserva, minutosAgora);
   return (
     <button
       onClick={onFocar}
-      className="flex items-center gap-3 px-5 py-3.5 flex-wrap sm:flex-nowrap text-left w-full"
-      style={{
-        ...(comBorda ? { borderTop: "1px solid var(--color-border)" } : {}),
-        background: focada ? "var(--color-primary-tint)" : "transparent",
-        borderLeft: focada ? "3px solid var(--color-primary)" : "3px solid transparent",
-      }}
+      className="flex items-center gap-3 pl-3 pr-3 sm:pr-4 py-3 text-left w-full"
+      style={estiloDoBloco(statusDaReserva(reserva.cancelada, chegada), focada)}
     >
       <span className="text-[15px] font-semibold tabular-nums w-12 shrink-0">
         {reserva.horario}
         {mostrarData && (
-          <span className="block text-[11px] font-medium" style={{ color: "var(--color-text-muted)" }}>
+          <span className="block text-[11px] font-medium" style={{ color: "var(--color-bloco-texto)" }}>
             {formatarDataCurta(dataDaReserva(reserva))}
           </span>
         )}
       </span>
-      <div className="flex-1 min-w-[140px]">
-        <span className="text-[16px] font-semibold block truncate">{reserva.nome}</span>
-        <span className="text-xs block" style={{ color: "var(--color-text-muted)" }}>{reserva.telefone}</span>
+      <div className="flex-1 min-w-0">
+        {/* o nome inteiro, quebrando linha se precisar: no celular não pode sumir */}
+        <span className="text-[16px] font-semibold leading-snug block break-words">{reserva.nome}</span>
+        <span className="text-xs block" style={{ color: "var(--color-bloco-texto)" }}>{reserva.telefone}</span>
+        {/* lista estreita (celular, ou computador com a planta ao lado): pessoas e mesa vêm embaixo do nome; lista larga: cada um tem coluna própria */}
+        <span className="text-xs block @min-[640px]:hidden" style={{ color: "var(--color-bloco-texto)" }}>
+          <span className="whitespace-nowrap">{reserva.pessoas} pessoa{reserva.pessoas === 1 ? "" : "s"}</span>
+          {" · "}
+          <span className="whitespace-nowrap">Mesa {reserva.mesaNumero}</span>
+        </span>
         {reserva.observacao && (
           <span className="text-xs flex items-center gap-1 mt-0.5 italic" style={{ color: "var(--color-primary)" }}>
             {ICONE_NOTA}
@@ -527,13 +528,14 @@ function LinhaReserva({
           </span>
         )}
       </div>
-      <span className="text-[14px] w-20 shrink-0" style={{ color: "var(--color-text-muted)" }}>{reserva.pessoas} pessoa{reserva.pessoas === 1 ? "" : "s"}</span>
-      <span className="flex items-center gap-1.5 text-xs w-20 shrink-0" style={{ color: "var(--color-text-muted)" }}>
+      <span className="hidden @min-[640px]:block text-[14px] w-20 shrink-0" style={{ color: "var(--color-bloco-texto)" }}>{reserva.pessoas} pessoa{reserva.pessoas === 1 ? "" : "s"}</span>
+      <span className="hidden @min-[640px]:flex items-center gap-1.5 text-xs w-20 shrink-0" style={{ color: "var(--color-bloco-texto)" }}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="9" width="18" height="4" rx="1" /><path d="M5 13v6M19 13v6" /></svg>
         Mesa {reserva.mesaNumero}
       </span>
-      <span className="w-28 shrink-0"><StatusBadge cancelada={reserva.cancelada} chegada={statusChegada(reserva, minutosAgora)} /></span>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" className="shrink-0"><path d="m9 18 6-6-6-6" /></svg>
+      <span className="@min-[640px]:hidden shrink-0 flex"><StatusBadge compacto cancelada={reserva.cancelada} chegada={chegada} /></span>
+      <span className="hidden @min-[640px]:block w-28 shrink-0"><StatusBadge cancelada={reserva.cancelada} chegada={chegada} /></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-bloco-texto)" strokeWidth="2" className="shrink-0 hidden @min-[640px]:block"><path d="m9 18 6-6-6-6" /></svg>
     </button>
   );
 }

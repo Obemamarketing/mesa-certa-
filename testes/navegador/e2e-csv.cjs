@@ -1,7 +1,7 @@
 // Clica em "Baixar planilha" e confere o arquivo gerado (contra o Supabase FALSO).
 const puppeteer = require("puppeteer-core");
 
-const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const EDGE = process.env.NAVEGADOR || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const BASE = "http://localhost:3001";
 const MOCK = "http://127.0.0.1:54321";
 let falhas = 0;

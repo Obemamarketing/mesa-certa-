@@ -1,6 +1,6 @@
 // Passada rápida por todas as páginas: abre, espera um texto-chave e junta erros de JavaScript.
 const puppeteer = require("puppeteer-core");
-const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const EDGE = process.env.NAVEGADOR || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const BASE = "http://localhost:3001";
 let falhas = 0;
 const ok = (c, msg) => { console.log((c ? "OK    " : "FALHA ") + msg); if (!c) falhas++; };
